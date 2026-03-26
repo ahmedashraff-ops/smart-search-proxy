@@ -1,35 +1,5 @@
 export const config = { runtime: 'edge' };
 
-const BASE = 'https://llm.api.cloud.yandex.net/v1';
-
-async function yCall(path, method, auth, folderId, body) {
-  const opts = {
-    method: method,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': auth,
-      'x-folder-id': folderId
-    }
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(BASE + path, opts);
-
-  // Read raw text first so we can debug non-JSON responses
-  const raw = await r.text();
-  let data;
-  try {
-    data = JSON.parse(raw);
-  } catch(e) {
-    // Return raw text in error so we can see exactly what Yandex sent back
-    data = { parseError: e.message, rawResponse: raw.substring(0, 500) };
-  }
-  return { status: r.status, data: data };
-}
-
-function sleep(ms) {
-  return new Promise(function(resolve) { setTimeout(resolve, ms); });
-}
-
 export default async function handler(req) {
 
   const cors = {
@@ -53,68 +23,41 @@ export default async function handler(req) {
       return new Response(JSON.stringify({ error: 'Missing: apiKey, folderId, agentId, query' }), { status: 400, headers: cors });
     }
 
-    const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
+    const auth     = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
+    const modelURI = 'gpt://' + folderId + '/' + agentId + '/latest';
 
-    // Step 1 — Create thread
-    const threadRes = await yCall('/threads', 'POST', auth, folderId, {});
-    if (threadRes.status !== 200 || threadRes.data.parseError) {
-      return new Response(JSON.stringify({
-        error: 'Step 1 (create thread) failed',
-        status: threadRes.status,
-        detail: threadRes.data
-      }), { status: 500, headers: cors });
-    }
-    const threadId = threadRes.data.id;
-
-    // Step 2 — Add user message
-    const msgRes = await yCall('/threads/' + threadId + '/messages', 'POST', auth, folderId, {
-      role: 'user',
-      content: [{ type: 'text', text: { value: query } }]
+    // Call chat completions with the Agent Atelier model URI
+    // The agent's knowledge base, web search and instructions are
+    // automatically applied by Yandex when using the agent URI
+    const yandexRes = await fetch('https://llm.api.cloud.yandex.net/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': auth,
+        'x-folder-id': folderId
+      },
+      body: JSON.stringify({
+        model: modelURI,
+        messages: [{ role: 'user', content: query }],
+        max_tokens: 2000,
+        temperature: 0.3
+      })
     });
-    if (msgRes.status !== 200 || msgRes.data.parseError) {
+
+    const raw = await yandexRes.text();
+    let data;
+    try { data = JSON.parse(raw); }
+    catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 500) }; }
+
+    if (!yandexRes.ok) {
       return new Response(JSON.stringify({
-        error: 'Step 2 (add message) failed',
-        status: msgRes.status,
-        detail: msgRes.data
-      }), { status: 500, headers: cors });
+        error: 'Yandex error ' + yandexRes.status,
+        detail: data
+      }), { status: yandexRes.status, headers: cors });
     }
 
-    // Step 3 — Start run
-    const runRes = await yCall('/threads/' + threadId + '/runs', 'POST', auth, folderId, {
-      assistant_id: agentId
-    });
-    if (runRes.status !== 200 || runRes.data.parseError) {
-      return new Response(JSON.stringify({
-        error: 'Step 3 (start run) failed',
-        status: runRes.status,
-        detail: runRes.data
-      }), { status: 500, headers: cors });
-    }
-    const runId = runRes.data.id;
-
-    // Step 4 — Poll until complete
-    let runStatus = runRes.data.status;
-    let attempts  = 0;
-    while (runStatus !== 'completed' && runStatus !== 'failed' && runStatus !== 'cancelled' && attempts < 12) {
-      await sleep(2000);
-      const poll = await yCall('/threads/' + threadId + '/runs/' + runId, 'GET', auth, folderId);
-      runStatus = poll.data.status;
-      attempts++;
-    }
-
-    if (runStatus !== 'completed') {
-      return new Response(JSON.stringify({ error: 'Agent timed out. Status: ' + runStatus }), { status: 504, headers: cors });
-    }
-
-    // Step 5 — Get messages
-    const msgsRes = await yCall('/threads/' + threadId + '/messages', 'GET', auth, folderId);
-    const msgs = msgsRes.data.data || msgsRes.data.messages || [];
-    const assistantMsgs = msgs.filter(function(m) { return m.role === 'assistant'; });
-    const last = assistantMsgs[assistantMsgs.length - 1];
-    const answer = (last && last.content && last.content[0] && last.content[0].text && last.content[0].text.value)
-      ? last.content[0].text.value
-      : JSON.stringify(last);
-
+    // Extract the agent's answer from the chat completion response
+    const answer = data.choices?.[0]?.message?.content || 'No response from agent.';
     return new Response(JSON.stringify({ answer: answer }), { status: 200, headers: cors });
 
   } catch (err) {
