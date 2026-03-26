@@ -1,11 +1,21 @@
-export default async function handler(req, res) {
+const https = require('https');
 
-  // ── CORS headers — allow requests from any origin (the browser demo)
+// Tell Vercel to parse JSON bodies automatically
+module.exports.config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '2mb'
+    }
+  }
+};
+
+module.exports = function handler(req, res) {
+
+  // Set CORS headers FIRST before anything else
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // ── Handle browser preflight check
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -14,46 +24,60 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { apiKey, folderId, model, messages, temperature, max_tokens } = req.body;
-
-  if (!apiKey || !folderId || !model || !messages) {
-    return res.status(400).json({ error: 'Missing required fields: apiKey, folderId, model, messages' });
+  // Safely read body — handle both parsed and unparsed
+  var body = req.body;
+  if (!body) {
+    return res.status(400).json({ error: 'Empty request body' });
+  }
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); }
+    catch(e) { return res.status(400).json({ error: 'Invalid JSON' }); }
   }
 
-  // ── Yandex uses different auth headers depending on key type:
-  //    API Keys (AQVN...) → "Api-Key <key>"
-  //    IAM Tokens (t1...) → "Bearer <token>"
-  const authHeader = apiKey.startsWith('t1.')
-    ? `Bearer ${apiKey}`
-    : `Api-Key ${apiKey}`;
+  if (!body.apiKey || !body.folderId || !body.model || !body.messages) {
+    return res.status(400).json({ error: 'Missing fields: apiKey, folderId, model, messages' });
+  }
 
-  try {
-    const yandexRes = await fetch('https://llm.api.cloud.yandex.net/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-        'x-folder-id': folderId,
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        temperature: temperature ?? 0.1,
-        max_tokens: max_tokens ?? 1000,
-      }),
-    });
+  var auth = body.apiKey.startsWith('t1.')
+    ? 'Bearer ' + body.apiKey
+    : 'Api-Key ' + body.apiKey;
 
-    const data = await yandexRes.json();
+  var payload = JSON.stringify({
+    model: body.model,
+    messages: body.messages,
+    temperature: body.temperature || 0.1,
+    max_tokens: body.max_tokens || 800
+  });
 
-    if (!yandexRes.ok) {
-      return res.status(yandexRes.status).json({
-        error: data?.error?.message || data?.message || `Yandex API error ${yandexRes.status}`,
-      });
+  var options = {
+    hostname: 'llm.api.cloud.yandex.net',
+    path: '/v1/chat/completions',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': auth,
+      'x-folder-id': body.folderId,
+      'Content-Length': Buffer.byteLength(payload)
     }
+  };
 
-    return res.status(200).json(data);
+  var yReq = https.request(options, function(yRes) {
+    var data = '';
+    yRes.on('data', function(chunk) { data += chunk; });
+    yRes.on('end', function() {
+      try {
+        var parsed = JSON.parse(data);
+        return res.status(yRes.statusCode).json(parsed);
+      } catch(e) {
+        return res.status(yRes.statusCode).json({ error: data });
+      }
+    });
+  });
 
-  } catch (err) {
-    return res.status(500).json({ error: `Proxy error: ${err.message}` });
-  }
-}
+  yReq.on('error', function(err) {
+    return res.status(500).json({ error: 'Request to Yandex failed: ' + err.message });
+  });
+
+  yReq.write(payload);
+  yReq.end();
+};
