@@ -1,6 +1,6 @@
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
 
-  // ── CORS headers — allow requests from any origin (the browser demo)
+  // ── CORS headers — allow requests from any origin
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -20,9 +20,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required fields: apiKey, folderId, model, messages' });
   }
 
-  // ── Yandex uses different auth headers depending on key type:
-  //    API Keys (AQVN...) → "Api-Key <key>"
-  //    IAM Tokens (t1...) → "Bearer <token>"
+  // ── Yandex: API Keys (AQVN...) use "Api-Key", IAM tokens (t1...) use "Bearer"
   const authHeader = apiKey.startsWith('t1.')
     ? `Bearer ${apiKey}`
     : `Api-Key ${apiKey}`;
