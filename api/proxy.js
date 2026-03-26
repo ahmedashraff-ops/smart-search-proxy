@@ -13,7 +13,16 @@ async function yCall(path, method, auth, folderId, body) {
   };
   if (body) opts.body = JSON.stringify(body);
   const r = await fetch(BASE + path, opts);
-  const data = await r.json();
+
+  // Read raw text first so we can debug non-JSON responses
+  const raw = await r.text();
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch(e) {
+    // Return raw text in error so we can see exactly what Yandex sent back
+    data = { parseError: e.message, rawResponse: raw.substring(0, 500) };
+  }
   return { status: r.status, data: data };
 }
 
@@ -34,7 +43,7 @@ export default async function handler(req) {
   if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: cors });
 
   try {
-    const body  = await req.json();
+    const body     = await req.json();
     const apiKey   = String(body.apiKey   || '');
     const folderId = String(body.folderId || '');
     const agentId  = String(body.agentId  || '');
@@ -48,8 +57,12 @@ export default async function handler(req) {
 
     // Step 1 — Create thread
     const threadRes = await yCall('/threads', 'POST', auth, folderId, {});
-    if (threadRes.status !== 200) {
-      return new Response(JSON.stringify({ error: 'Thread creation failed', detail: threadRes.data }), { status: threadRes.status, headers: cors });
+    if (threadRes.status !== 200 || threadRes.data.parseError) {
+      return new Response(JSON.stringify({
+        error: 'Step 1 (create thread) failed',
+        status: threadRes.status,
+        detail: threadRes.data
+      }), { status: 500, headers: cors });
     }
     const threadId = threadRes.data.id;
 
@@ -58,20 +71,28 @@ export default async function handler(req) {
       role: 'user',
       content: [{ type: 'text', text: { value: query } }]
     });
-    if (msgRes.status !== 200) {
-      return new Response(JSON.stringify({ error: 'Message failed', detail: msgRes.data }), { status: msgRes.status, headers: cors });
+    if (msgRes.status !== 200 || msgRes.data.parseError) {
+      return new Response(JSON.stringify({
+        error: 'Step 2 (add message) failed',
+        status: msgRes.status,
+        detail: msgRes.data
+      }), { status: 500, headers: cors });
     }
 
-    // Step 3 — Start run with your Agent Atelier agent
+    // Step 3 — Start run
     const runRes = await yCall('/threads/' + threadId + '/runs', 'POST', auth, folderId, {
       assistant_id: agentId
     });
-    if (runRes.status !== 200) {
-      return new Response(JSON.stringify({ error: 'Run failed', detail: runRes.data }), { status: runRes.status, headers: cors });
+    if (runRes.status !== 200 || runRes.data.parseError) {
+      return new Response(JSON.stringify({
+        error: 'Step 3 (start run) failed',
+        status: runRes.status,
+        detail: runRes.data
+      }), { status: 500, headers: cors });
     }
     const runId = runRes.data.id;
 
-    // Step 4 — Poll until complete (max 25 seconds, every 2s)
+    // Step 4 — Poll until complete
     let runStatus = runRes.data.status;
     let attempts  = 0;
     while (runStatus !== 'completed' && runStatus !== 'failed' && runStatus !== 'cancelled' && attempts < 12) {
@@ -85,7 +106,7 @@ export default async function handler(req) {
       return new Response(JSON.stringify({ error: 'Agent timed out. Status: ' + runStatus }), { status: 504, headers: cors });
     }
 
-    // Step 5 — Get assistant reply
+    // Step 5 — Get messages
     const msgsRes = await yCall('/threads/' + threadId + '/messages', 'GET', auth, folderId);
     const msgs = msgsRes.data.data || msgsRes.data.messages || [];
     const assistantMsgs = msgs.filter(function(m) { return m.role === 'assistant'; });
