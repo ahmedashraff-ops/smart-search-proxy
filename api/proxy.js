@@ -20,12 +20,19 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing required fields: apiKey, folderId, model, messages' });
   }
 
+  // ── Yandex uses different auth headers depending on key type:
+  //    API Keys (AQVN...) → "Api-Key <key>"
+  //    IAM Tokens (t1...) → "Bearer <token>"
+  const authHeader = apiKey.startsWith('t1.')
+    ? `Bearer ${apiKey}`
+    : `Api-Key ${apiKey}`;
+
   try {
     const yandexRes = await fetch('https://llm.api.cloud.yandex.net/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': authHeader,
         'x-folder-id': folderId,
       },
       body: JSON.stringify({
