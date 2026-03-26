@@ -21,12 +21,18 @@ export default async function handler(req) {
 
   try {
     const body = await req.json();
-    const { apiKey, folderId, model, messages, temperature, max_tokens } = body;
+
+    // Force strings — Edge Runtime can minify variable names causing type errors
+    const apiKey   = String(body.apiKey   || '');
+    const folderId = String(body.folderId || '');
+    const model    = String(body.model    || '');
+    const messages = body.messages;
 
     if (!apiKey || !folderId || !model || !messages) {
-      return new Response(JSON.stringify({ error: 'Missing fields' }), {
-        status: 400, headers: corsHeaders
-      });
+      return new Response(JSON.stringify({
+        error: 'Missing fields',
+        received: Object.keys(body)
+      }), { status: 400, headers: corsHeaders });
     }
 
     const auth = apiKey.startsWith('t1.')
@@ -41,10 +47,10 @@ export default async function handler(req) {
         'x-folder-id': folderId
       },
       body: JSON.stringify({
-        model,
-        messages,
-        temperature: temperature || 0.1,
-        max_tokens: max_tokens || 800
+        model:       model,
+        messages:    messages,
+        temperature: body.temperature  || 0.1,
+        max_tokens:  body.max_tokens   || 800
       })
     });
 
@@ -54,7 +60,7 @@ export default async function handler(req) {
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
       status: 500, headers: corsHeaders
     });
   }
