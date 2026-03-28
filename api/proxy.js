@@ -24,7 +24,7 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    const prompt =  ${query}
+    const prompt =  ${query};
 
 Search for products and return ONLY a JSON object in this exact format, no other text:
 {
