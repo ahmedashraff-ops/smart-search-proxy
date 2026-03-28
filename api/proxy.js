@@ -23,13 +23,11 @@ export default async function handler(req) {
       return new Response(JSON.stringify({ error: 'Missing: apiKey, folderId, agentId, query' }), { status: 400, headers: cors });
     }
 
-    const auth     = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
-    const modelURI = 'gpt://' + folderId + '/' + agentId + '/latest';
+    const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    // Call chat completions with the Agent Atelier model URI
-    // The agent's knowledge base, web search and instructions are
-    // automatically applied by Yandex when using the agent URI
-    const yandexRes = await fetch('https://llm.api.cloud.yandex.net/v1/chat/completions', {
+    // Agent Atelier agents use the Responses API, not chat/completions
+    // The agent ID is passed directly as the model
+    const yandexRes = await fetch('https://llm.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -37,17 +35,16 @@ export default async function handler(req) {
         'x-folder-id': folderId
       },
       body: JSON.stringify({
-        model: modelURI,
-        messages: [{ role: 'user', content: query }],
-        max_tokens: 2000,
-        temperature: 0.3
+        model: agentId,
+        input: query,
+        max_output_tokens: 2000
       })
     });
 
     const raw = await yandexRes.text();
     let data;
     try { data = JSON.parse(raw); }
-    catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 500) }; }
+    catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
 
     if (!yandexRes.ok) {
       return new Response(JSON.stringify({
@@ -56,8 +53,20 @@ export default async function handler(req) {
       }), { status: yandexRes.status, headers: cors });
     }
 
-    // Extract the agent's answer from the chat completion response
-    const answer = data.choices?.[0]?.message?.content || 'No response from agent.';
+    // Responses API returns output as an array of content blocks
+    let answer = 'No response from agent.';
+    if (data.output) {
+      // output is an array — find the message block with text
+      const msgBlock = data.output.find(function(o) { return o.type === 'message'; });
+      if (msgBlock && msgBlock.content) {
+        const textBlock = msgBlock.content.find(function(c) { return c.type === 'output_text'; });
+        if (textBlock) answer = textBlock.text;
+      }
+    } else if (data.choices) {
+      // Fallback: sometimes returns chat completions format
+      answer = data.choices[0]?.message?.content || answer;
+    }
+
     return new Response(JSON.stringify({ answer: answer }), { status: 200, headers: cors });
 
   } catch (err) {
