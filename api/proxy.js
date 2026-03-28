@@ -16,18 +16,17 @@ export default async function handler(req) {
     const body     = await req.json();
     const apiKey   = String(body.apiKey   || '');
     const folderId = String(body.folderId || '');
-    const agentId  = String(body.agentId  || '');
     const query    = String(body.query    || '');
 
-    if (!apiKey || !folderId || !agentId || !query) {
-      return new Response(JSON.stringify({ error: 'Missing: apiKey, folderId, agentId, query' }), { status: 400, headers: cors });
+    if (!apiKey || !folderId || !query) {
+      return new Response(JSON.stringify({ error: 'Missing: apiKey, folderId, query' }), { status: 400, headers: cors });
     }
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    // Agent Atelier agents use the Responses API, not chat/completions
-    // The agent ID is passed directly as the model
-    const yandexRes = await fetch('https://llm.api.cloud.yandex.net/v1/responses', {
+    // Correct host: ai.api.cloud.yandex.net (NOT llm.api.cloud.yandex.net)
+    // Responses API with web_search tool restricted to Sharaf DG
+    const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -35,9 +34,18 @@ export default async function handler(req) {
         'x-folder-id': folderId
       },
       body: JSON.stringify({
-        model: agentId,
-        input: query,
-        max_output_tokens: 2000
+        model: 'gpt://' + folderId + '/yandexgpt',
+        input: 'Search Sharaf DG website and find products matching this customer request: ' + query + '. For each product found, include the product name, price in AED, key features, and a direct link if available. Present results in a clear, helpful format.',
+        tools: [
+          {
+            type: 'web_search',
+            filters: {
+              allowed_domains: ['uae.sharafdg.com', 'sharafdg.com']
+            }
+          }
+        ],
+        temperature: 0.3,
+        max_output_tokens: 1500
       })
     });
 
@@ -53,18 +61,16 @@ export default async function handler(req) {
       }), { status: yandexRes.status, headers: cors });
     }
 
-    // Responses API returns output as an array of content blocks
-    let answer = 'No response from agent.';
-    if (data.output) {
-      // output is an array — find the message block with text
+    // Extract answer from Responses API output
+    let answer = 'No results found.';
+    if (data.output_text) {
+      answer = data.output_text;
+    } else if (data.output) {
       const msgBlock = data.output.find(function(o) { return o.type === 'message'; });
       if (msgBlock && msgBlock.content) {
-        const textBlock = msgBlock.content.find(function(c) { return c.type === 'output_text'; });
+        const textBlock = msgBlock.content.find(function(c) { return c.type === 'output_text' || c.type === 'text'; });
         if (textBlock) answer = textBlock.text;
       }
-    } else if (data.choices) {
-      // Fallback: sometimes returns chat completions format
-      answer = data.choices[0]?.message?.content || answer;
     }
 
     return new Response(JSON.stringify({ answer: answer }), { status: 200, headers: cors });
