@@ -24,27 +24,26 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    const prompt =  `${query}
+    const prompt = `${query}
 
-Search for products and return ONLY a JSON object in this exact format, no other text:
+Based on this request, search for relevant products and return ONLY a JSON object in this exact format, no other text. Even if the request is specific or conversational, always return as many relevant products as possible — do not limit yourself to just a few:
 {
-  "summary": "describe what you found",
+  "summary": "describe what you found and why these products suit the request",
   "products": [
     {
       "name": "Full product name",
       "brand": "Brand name",
-      "specs": "Key specs e.g. 1.5 Ton · Inverter · 18,000 BTU",
+      "specs": "Key specs e.g. 55 inch · 4K QLED · 120Hz",
       "price": 1299,
       "original_price": 1599,
       "energy_rating": "5 Star",
       "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
-      "why": "write a suggestion as to why this product is a good fit",
+      "why": "specific reason this product suits the customer request",
       "url": "https://uae.sharafdg.com/product-url-if-found"
     }
   ]
 }
-
-Return as many products as you can find, ideally 8 to 12 products. If original_price is unavailable set it to null. If url is unavailable set it to null. Return only the JSON, no markdown, no explanation.`;
+Always return 8 to 12 products. If fewer are found for the exact query, broaden your search to related products in the same category. If original_price is unavailable set it to null. If url is unavailable set it to null. Return only the JSON, no markdown, no explanation.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
