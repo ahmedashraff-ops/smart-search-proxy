@@ -24,6 +24,28 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
+    const prompt = `I want to buy ${query} in UAE.
+
+Search for products and return ONLY a JSON object in this exact format, no other text:
+{
+  "summary": "one sentence describing what you found",
+  "products": [
+    {
+      "name": "Full product name",
+      "brand": "Brand name",
+      "specs": "Key specs in one line e.g. 1.5 Ton · Inverter · 18,000 BTU",
+      "price": 1299,
+      "original_price": 1599,
+      "energy_rating": "5 Star",
+      "features": ["Feature 1", "Feature 2", "Feature 3"],
+      "why": "One sentence why this matches the search",
+      "url": "https://uae.sharafdg.com/product-url-if-found"
+    }
+  ]
+}
+
+Return 3 to 5 products. If original_price is unavailable set it to null. If url is unavailable set it to null. Return only the JSON, no markdown, no explanation.`;
+
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
       headers: {
@@ -33,19 +55,15 @@ export default async function handler(req) {
       },
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
-        // Natural prompt — no mention of "search this website", just a shopping request
-        input: 'I want to buy ' + query + ' in UAE. What are the best options with prices in AED?',
+        input: prompt,
         tools: [
           {
             type: 'web_search',
-            // Domain filter silently restricts search to Sharaf DG only
-            filters: {
-              allowed_domains: ['uae.sharafdg.com']
-            }
+            filters: { allowed_domains: ['uae.sharafdg.com'] }
           }
         ],
-        temperature: 0.3,
-        max_output_tokens: 1500
+        temperature: 0.2,
+        max_output_tokens: 2000
       })
     });
 
@@ -61,7 +79,7 @@ export default async function handler(req) {
       }), { status: yandexRes.status, headers: cors });
     }
 
-    let answer = 'No results found.';
+    let answer = '';
     if (data.output_text) {
       answer = data.output_text;
     } else if (data.output) {
