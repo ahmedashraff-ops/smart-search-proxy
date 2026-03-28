@@ -24,21 +24,21 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    const prompt = `I want to buy ${query} in UAE.
+    const prompt =  ${query}
 
 Search for products and return ONLY a JSON object in this exact format, no other text:
 {
-  "summary": "one sentence describing what you found",
+  "summary": "describe what you found",
   "products": [
     {
       "name": "Full product name",
       "brand": "Brand name",
-      "specs": "Key specs in one line e.g. 1.5 Ton · Inverter · 18,000 BTU",
+      "specs": "Key specs e.g. 1.5 Ton · Inverter · 18,000 BTU",
       "price": 1299,
       "original_price": 1599,
       "energy_rating": "5 Star",
-      "features": ["Feature 1", "Feature 2", "Feature 3"],
-      "why": "One sentence why this matches the search",
+      "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
+      "why": "write a suggestion as to why this product is a good fit",
       "url": "https://uae.sharafdg.com/product-url-if-found"
     }
   ]
