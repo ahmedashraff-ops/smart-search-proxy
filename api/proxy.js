@@ -44,7 +44,7 @@ Search for products and return ONLY a JSON object in this exact format, no other
   ]
 }
 
-Return 3 to 5 products. If original_price is unavailable set it to null. If url is unavailable set it to null. Return only the JSON, no markdown, no explanation.`;
+Return as many products as you can find, ideally 8 to 12 products. If original_price is unavailable set it to null. If url is unavailable set it to null. Return only the JSON, no markdown, no explanation.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -63,7 +63,7 @@ Return 3 to 5 products. If original_price is unavailable set it to null. If url 
           }
         ],
         temperature: 0.2,
-        max_output_tokens: 2000
+        max_output_tokens: 4000
       })
     });
 
