@@ -24,8 +24,6 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    // Correct host: ai.api.cloud.yandex.net (NOT llm.api.cloud.yandex.net)
-    // Responses API with web_search tool restricted to Sharaf DG
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
       headers: {
@@ -35,15 +33,8 @@ export default async function handler(req) {
       },
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
-        input: 'Search Sharaf DG website and find products matching this customer request: ' + query + '. For each product found, include the product name, price in AED, key features, and a direct link if available. Present results in a clear, helpful format.',
-        tools: [
-          {
-            type: 'web_search',
-            filters: {
-              allowed_domains: ['uae.sharafdg.com', 'sharafdg.com']
-            }
-          }
-        ],
+        input: 'I am looking for electronics in UAE. ' + query + '. Please search online and give me specific product recommendations available in UAE, including product names, prices in AED, and where to buy them.',
+        tools: [{ type: 'web_search' }],
         temperature: 0.3,
         max_output_tokens: 1500
       })
@@ -61,7 +52,7 @@ export default async function handler(req) {
       }), { status: yandexRes.status, headers: cors });
     }
 
-    // Extract answer from Responses API output
+    // Extract answer
     let answer = 'No results found.';
     if (data.output_text) {
       answer = data.output_text;
