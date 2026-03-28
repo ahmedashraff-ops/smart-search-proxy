@@ -33,8 +33,17 @@ export default async function handler(req) {
       },
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
-        input: 'I am looking for electronics in UAE. ' + query + '. Please search online and give me specific product recommendations available in UAE, including product names, prices in AED, and where to buy them.',
-        tools: [{ type: 'web_search' }],
+        // Natural prompt — no mention of "search this website", just a shopping request
+        input: 'I want to buy ' + query + ' in UAE. What are the best options with prices in AED?',
+        tools: [
+          {
+            type: 'web_search',
+            // Domain filter silently restricts search to Sharaf DG only
+            filters: {
+              allowed_domains: ['uae.sharafdg.com']
+            }
+          }
+        ],
         temperature: 0.3,
         max_output_tokens: 1500
       })
@@ -52,7 +61,6 @@ export default async function handler(req) {
       }), { status: yandexRes.status, headers: cors });
     }
 
-    // Extract answer
     let answer = 'No results found.';
     if (data.output_text) {
       answer = data.output_text;
