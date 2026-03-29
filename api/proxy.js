@@ -26,7 +26,7 @@ export default async function handler(req) {
 
     const prompt = `${query}
 
-Based on this request, search for relevant products and return ONLY a JSON object in this exact format, no other text. Even if the request is specific or conversational, always return as many relevant products as possible — do not limit yourself to just a few:
+Based on this request, search for relevant products and return ONLY a valid JSON object with no markdown, no code fences, no explanation — just raw JSON:
 {
   "summary": "describe what you found and why these products suit the request",
   "products": [
@@ -40,11 +40,11 @@ Based on this request, search for relevant products and return ONLY a JSON objec
       "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
       "why": "specific reason this product suits the customer request",
       "url": "https://uae.sharafdg.com/product-url-if-found",
-      "image_url": "https://full-url-to-product-image-if-found-on-the-page"
+      "image_url": "https://cdn.sharafdg.com/image-url-from-the-product-page"
     }
   ]
 }
-Always return 8 to 12 products. If fewer are found for the exact query, broaden your search to related products in the same category. If original_price is unavailable set it to null. If url is unavailable set it to null. If image_url is unavailable set it to null. Try hard to find the product image URL from the Sharaf DG product page. Return only the JSON, no markdown, no explanation.`;
+Always return 8 to 12 products. If fewer are found for the exact query, broaden your search to related products in the same category. If original_price is unavailable set it to null. If url is unavailable set it to null. If image_url is not found on the product page set it to null. Return ONLY the raw JSON object, absolutely no markdown formatting, no backticks, no code blocks.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -56,12 +56,7 @@ Always return 8 to 12 products. If fewer are found for the exact query, broaden 
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
         input: prompt,
-        tools: [
-          {
-            type: 'web_search',
-            filters: { allowed_domains: ['uae.sharafdg.com'] }
-          }
-        ],
+        tools: [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
         temperature: 0.2,
         max_output_tokens: 4000
       })
@@ -73,24 +68,60 @@ Always return 8 to 12 products. If fewer are found for the exact query, broaden 
     catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
 
     if (!yandexRes.ok) {
-      return new Response(JSON.stringify({
-        error: 'Yandex error ' + yandexRes.status,
-        detail: data
-      }), { status: yandexRes.status, headers: cors });
+      return new Response(JSON.stringify({ error: 'Yandex error ' + yandexRes.status, detail: data }), {
+        status: yandexRes.status, headers: cors
+      });
     }
 
+    // Extract answer text
     let answer = '';
     if (data.output_text) {
       answer = data.output_text;
     } else if (data.output) {
-      const msgBlock = data.output.find(function(o) { return o.type === 'message'; });
+      const msgBlock = data.output.find(o => o.type === 'message');
       if (msgBlock && msgBlock.content) {
-        const textBlock = msgBlock.content.find(function(c) { return c.type === 'output_text' || c.type === 'text'; });
+        const textBlock = msgBlock.content.find(c => c.type === 'output_text' || c.type === 'text');
         if (textBlock) answer = textBlock.text;
       }
     }
 
-    return new Response(JSON.stringify({ answer: answer }), { status: 200, headers: cors });
+    // Strip markdown fences server-side as well
+    let clean = answer.trim();
+    if (clean.startsWith('```')) {
+      clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
+    }
+
+    // For products missing image_url, fetch images from Bing (no key needed)
+    let parsed;
+    try {
+      const m = clean.match(/(\{[\s\S]*\})/);
+      parsed = JSON.parse(m ? m[1] : clean);
+    } catch(e) {
+      // Return raw if JSON parse fails
+      return new Response(JSON.stringify({ answer: clean }), { status: 200, headers: cors });
+    }
+
+    // Enrich missing image_urls using Bing Image Search (no API key needed)
+    if (parsed.products) {
+      const enriched = await Promise.all(parsed.products.map(async (p) => {
+        if (p.image_url) return p;
+        try {
+          const searchTerm = encodeURIComponent((p.brand || '') + ' ' + (p.name || '') + ' product');
+          const bingRes = await fetch(
+            `https://www.bing.com/images/search?q=${searchTerm}&qft=+filterui:photo-photo&form=IRFLTR&first=1`,
+            { headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SmartSearch/1.0)' } }
+          );
+          const html = await bingRes.text();
+          // Extract first murl (image URL) from Bing results
+          const match = html.match(/"murl":"([^"]+)"/);
+          if (match) p.image_url = match[1];
+        } catch(e) { /* leave null */ }
+        return p;
+      }));
+      parsed.products = enriched;
+    }
+
+    return new Response(JSON.stringify({ answer: JSON.stringify(parsed) }), { status: 200, headers: cors });
 
   } catch (err) {
     return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
