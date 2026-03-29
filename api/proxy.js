@@ -37,7 +37,8 @@ Return a raw JSON object — no markdown, no code fences, just the JSON:
       "brand": "brand name",
       "specs": "key specs e.g. 50L · Single Door · A+ Energy",
       "price": 499,
-      "url": "https://uae.sharafdg.com/product/actual-product-slug/"
+      "url": "https://uae.sharafdg.com/product/actual-product-slug/",
+      "why": "specific reason this product suits the customer request"
     }
   ]
 }
