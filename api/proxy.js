@@ -89,24 +89,37 @@ Always return 8 to 12 products. If fewer are found for the exact query, broaden 
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
     }
 
-    // Parse products and scrape real images from Sharaf DG product pages
+    // Parse products
     let parsed;
     try { parsed = JSON.parse(clean); } catch(e) { parsed = null; }
 
     if (parsed && parsed.products) {
+      const UA = 'Mozilla/5.0 (compatible; SharafDG-SmartSearch/1.0)';
+
       await Promise.all(parsed.products.map(async (product) => {
-        if (!product.url) return;
         try {
-          const pageRes = await fetch(product.url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SharafDG-SmartSearch/1.0)' }
-          });
-          const html = await pageRes.text();
-          const match = html.match(/https:\/\/pimcdn\.sharafdg\.com\/[^"'\s>]+/);
-          if (match) {
-            product.image_url = match[0].replace(/width=\d+,height=\d+/, 'width=600,height=600');
+          // Step 1: If no URL, search Sharaf DG to find the real product page
+          if (!product.url) {
+            const searchTerm = encodeURIComponent((product.brand || '') + ' ' + (product.name || ''));
+            const searchUrl = 'https://uae.sharafdg.com/?s=' + searchTerm + '&post_type=product';
+            const searchRes = await fetch(searchUrl, { headers: { 'User-Agent': UA } });
+            const searchHtml = await searchRes.text();
+            const urlMatch = searchHtml.match(/href="(https:\/\/uae\.sharafdg\.com\/product\/[^"]+)"/);
+            if (urlMatch) product.url = urlMatch[1];
+          }
+
+          // Step 2: Fetch product page and extract pimcdn image URL
+          if (product.url) {
+            const pageRes = await fetch(product.url, { headers: { 'User-Agent': UA } });
+            const html = await pageRes.text();
+            const imgMatch = html.match(/https:\/\/pimcdn\.sharafdg\.com\/[^"'\s>]+/);
+            if (imgMatch) {
+              product.image_url = imgMatch[0].replace(/width=\d+,height=\d+/, 'width=600,height=600');
+            }
           }
         } catch(e) {}
       }));
+
       clean = JSON.stringify(parsed);
     }
 
