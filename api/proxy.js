@@ -26,25 +26,25 @@ export default async function handler(req) {
 
     const prompt = `${query}
 
-Based on this request, find real matching products from the Sharaf DG UAE online store (uae.sharafdg.com) and return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
+Based on this request, search for relevant products and return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
 {
   "summary": "describe what you found and why these products suit the request",
   "products": [
     {
-      "name": "Full product name as listed on Sharaf DG",
+      "name": "Full product name",
       "brand": "Brand name",
-      "specs": "Key specs e.g. 50L capacity · Single Door · No Frost",
-      "price": 299,
-      "original_price": 399,
+      "specs": "Key specs e.g. 55 inch · 4K QLED · 120Hz",
+      "price": 1299,
+      "original_price": 1599,
       "energy_rating": "5 Star",
-      "features": ["Feature 1", "Feature 2", "Feature 3"],
-      "why": "specific reason this product suits the request",
-      "url": "https://uae.sharafdg.com/product/real-product-slug/",
+      "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
+      "why": "specific reason this product suits the customer request",
+      "url": "https://uae.sharafdg.com/product-url-if-found",
       "image_url": null
     }
   ]
 }
-Only include real products from uae.sharafdg.com. Always return 8 to 12 products. If fewer found, broaden to related products in the same category. Set original_price to null if unavailable. Set url to null if unavailable. Set image_url to null. Return ONLY raw JSON, nothing else.`;
+Always return 8 to 12 products. If fewer are found for the exact query, broaden your search to related products in the same category. If original_price is unavailable set it to null. If url is unavailable set it to null. Set image_url to null. Return ONLY raw JSON, nothing else.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -56,7 +56,7 @@ Only include real products from uae.sharafdg.com. Always return 8 to 12 products
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
         input: prompt,
-        tools: [{ type: 'web_search' }],
+        tools: [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
         temperature: 0.2,
         max_output_tokens: 4000
       })
@@ -89,7 +89,7 @@ Only include real products from uae.sharafdg.com. Always return 8 to 12 products
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
     }
 
-    // Parse and scrape real images from product pages
+    // Parse products and scrape real images from Sharaf DG product pages
     let parsed;
     try { parsed = JSON.parse(clean); } catch(e) { parsed = null; }
 
