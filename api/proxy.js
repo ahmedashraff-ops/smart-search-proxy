@@ -39,11 +39,12 @@ Based on this request, search for relevant products and return ONLY a JSON objec
       "energy_rating": "5 Star",
       "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
       "why": "specific reason this product suits the customer request",
-      "url": "https://uae.sharafdg.com/product-url-if-found"
+      "url": "https://uae.sharafdg.com/product-url-if-found",
+      "image_url": "https://full-url-to-product-image-if-found-on-the-page"
     }
   ]
 }
-Always return 8 to 12 products. If fewer are found for the exact query, broaden your search to related products in the same category. If original_price is unavailable set it to null. If url is unavailable set it to null. Return only the JSON, no markdown, no explanation.`;
+Always return 8 to 12 products. If fewer are found for the exact query, broaden your search to related products in the same category. If original_price is unavailable set it to null. If url is unavailable set it to null. If image_url is unavailable set it to null. Try hard to find the product image URL from the Sharaf DG product page. Return only the JSON, no markdown, no explanation.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
