@@ -26,14 +26,14 @@ export default async function handler(req) {
 
     const prompt = `${query}
 
-Search Sharaf DG UAE for real products matching this request and return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
+Based on this request, find real matching products from the Sharaf DG UAE online store (uae.sharafdg.com) and return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
 {
   "summary": "describe what you found and why these products suit the request",
   "products": [
     {
       "name": "Full product name as listed on Sharaf DG",
       "brand": "Brand name",
-      "specs": "Key specs e.g. 50L · Single Door · No Frost",
+      "specs": "Key specs e.g. 50L capacity · Single Door · No Frost",
       "price": 299,
       "original_price": 399,
       "energy_rating": "5 Star",
@@ -44,7 +44,7 @@ Search Sharaf DG UAE for real products matching this request and return ONLY a v
     }
   ]
 }
-Only include real products found on uae.sharafdg.com. Always return 8 to 12 products. If fewer found, broaden to related products in the same category. Set original_price to null if unavailable. Set url to null if unavailable. Set image_url to null. Return ONLY raw JSON, nothing else.`;
+Only include real products from uae.sharafdg.com. Always return 8 to 12 products. If fewer found, broaden to related products in the same category. Set original_price to null if unavailable. Set url to null if unavailable. Set image_url to null. Return ONLY raw JSON, nothing else.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -56,7 +56,7 @@ Only include real products found on uae.sharafdg.com. Always return 8 to 12 prod
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
         input: prompt,
-        tools: [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
+        tools: [{ type: 'web_search' }],
         temperature: 0.2,
         max_output_tokens: 4000
       })
