@@ -26,27 +26,25 @@ export default async function handler(req) {
 
     const prompt = `${query}
 
-Use web_search to search uae.sharafdg.com for real products matching this request. For each product found, visit the actual product page to get the real product URL.
-
-Return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
+Search Sharaf DG UAE for real products matching this request and return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
 {
   "summary": "describe what you found and why these products suit the request",
   "products": [
     {
-      "name": "Full product name as shown on Sharaf DG",
+      "name": "Full product name as listed on Sharaf DG",
       "brand": "Brand name",
-      "specs": "Key specs e.g. 55 inch · 4K QLED · 120Hz",
-      "price": 1299,
-      "original_price": 1599,
+      "specs": "Key specs e.g. 50L · Single Door · No Frost",
+      "price": 299,
+      "original_price": 399,
       "energy_rating": "5 Star",
-      "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
-      "why": "specific reason this product suits the customer request",
+      "features": ["Feature 1", "Feature 2", "Feature 3"],
+      "why": "specific reason this product suits the request",
       "url": "https://uae.sharafdg.com/product/real-product-slug/",
       "image_url": null
     }
   ]
 }
-IMPORTANT: Only include real products that actually exist on uae.sharafdg.com. Always return 8 to 12 products. If original_price is unavailable set it to null. If url is unavailable set it to null. Set image_url to null always — it will be filled in later. Return ONLY raw JSON, nothing else.`;
+Only include real products found on uae.sharafdg.com. Always return 8 to 12 products. If fewer found, broaden to related products in the same category. Set original_price to null if unavailable. Set url to null if unavailable. Set image_url to null. Return ONLY raw JSON, nothing else.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -91,6 +89,7 @@ IMPORTANT: Only include real products that actually exist on uae.sharafdg.com. A
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
     }
 
+    // Parse and scrape real images from product pages
     let parsed;
     try { parsed = JSON.parse(clean); } catch(e) { parsed = null; }
 
