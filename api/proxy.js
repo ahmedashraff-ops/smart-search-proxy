@@ -56,8 +56,8 @@ Return 8 to 12 products. Set price to null if not found. Set url to null if not 
         model:             'gpt://' + folderId + '/yandexgpt',
         input:             prompt,
         tools:             [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
-        temperature:       0.1,
-        max_output_tokens: 2500
+        temperature:       0.2,
+        max_output_tokens: 3000
       })
     });
 
