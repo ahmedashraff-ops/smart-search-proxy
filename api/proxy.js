@@ -26,11 +26,11 @@ export default async function handler(req) {
 
     const prompt = `Customer request: "${query}"
 
-Search Sharaf DG UAE and find real products that match this request.
+Search Sharaf DG UAE and find real products that match this request. Only include products you actually found via search — never invent names or make up products.
 
-Return a raw JSON object — no markdown, no code fences, just the JSON:
+Return ONLY a raw JSON object (no markdown, no code fences):
 {
-  "summary": "1-2 sentences describing what you found and why these products suit the request",
+  "summary": "describe what you found and why these products suit the request",
   "products": [
     {
       "name": "exact product name as listed on the website",
@@ -43,13 +43,7 @@ Return a raw JSON object — no markdown, no code fences, just the JSON:
   ]
 }
 
-Rules:
-- Only include real products you actually found via search — never invent or guess names
-- Use the exact product name shown on the website
-- Include between 4 and 8 products
-- Set price to null if not available
-- Set url to null if not available
-- Return ONLY the JSON object, nothing else`;
+Return 4 to 8 products. Set price to null if not found. Set url to null if not found.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -63,7 +57,7 @@ Rules:
         input:             prompt,
         tools:             [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
         temperature:       0.1,
-        max_output_tokens: 3000
+        max_output_tokens: 1500
       })
     });
 
@@ -78,7 +72,7 @@ Rules:
       });
     }
 
-    // Extract the text answer from the response
+    // Extract the text answer
     let answer = '';
     if (data.output_text) {
       answer = data.output_text;
@@ -95,6 +89,23 @@ Rules:
     if (clean.startsWith('```')) {
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
     }
+
+    // Fake product detection — if AI hallucinated placeholder names, return an error
+    // instead of showing garbage data to the user
+    try {
+      const parsed = JSON.parse(clean.match(/(\{[\s\S]*\})/)?.[1] || clean);
+      if (parsed && parsed.products) {
+        const fakePattern = /^(brand\s*[a-z]|model\s*[a-z]|product\s*[a-z]|brand\s*\d)/i;
+        const fakeCount = parsed.products.filter(p =>
+          fakePattern.test(p.brand || '') || fakePattern.test(p.name || '')
+        ).length;
+        if (fakeCount > 0 && fakeCount >= parsed.products.length / 2) {
+          return new Response(JSON.stringify({
+            error: 'The AI could not find real products for this search. Please try a more specific query, e.g. include a brand name or product type.'
+          }), { status: 422, headers: cors });
+        }
+      }
+    } catch (e) { /* parsing will be handled on the frontend */ }
 
     return new Response(JSON.stringify({ answer: clean }), { status: 200, headers: cors });
 
