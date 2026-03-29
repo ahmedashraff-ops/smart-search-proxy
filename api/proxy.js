@@ -43,7 +43,7 @@ Return ONLY a raw JSON object (no markdown, no code fences):
   ]
 }
 
-Return 4 to 8 products. Set price to null if not found. Set url to null if not found.`;
+Return 8 to 12 products. Set price to null if not found. Set url to null if not found.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -57,7 +57,7 @@ Return 4 to 8 products. Set price to null if not found. Set url to null if not f
         input:             prompt,
         tools:             [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
         temperature:       0.1,
-        max_output_tokens: 1500
+        max_output_tokens: 2500
       })
     });
 
