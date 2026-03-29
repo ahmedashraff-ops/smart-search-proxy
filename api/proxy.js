@@ -26,7 +26,7 @@ export default async function handler(req) {
 
     const prompt = `${query}
 
-Use web_search to search uae.sharafdg.com for real products matching this request. For each product found, visit the actual product page to get the real product image URL and product URL.
+Use web_search to search uae.sharafdg.com for real products matching this request. For each product found, visit the actual product page to get the real product URL.
 
 Return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
 {
@@ -41,16 +41,20 @@ Return ONLY a valid JSON object — no markdown, no code fences, no backticks, n
       "energy_rating": "5 Star",
       "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
       "why": "specific reason this product suits the customer request",
-      "url": "https://uae.sharafdg.com/real-product-page-url",
-      "image_url": "https://uae.sharafdg.com/real-product-image-url.jpg"
+      "url": "https://uae.sharafdg.com/product/real-product-slug/",
+      "image_url": null
     }
   ]
 }
-IMPORTANT: Only include real products that actually exist on uae.sharafdg.com. Use web_search to find them and extract the real product page URL and the actual product image URL (usually from media.sharafdg.com or a CDN). Always return 8 to 12 products. If original_price is unavailable set it to null. If url is unavailable set it to null. If image_url is unavailable set it to null. Return ONLY raw JSON, nothing else.`;
+IMPORTANT: Only include real products that actually exist on uae.sharafdg.com. Always return 8 to 12 products. If original_price is unavailable set it to null. If url is unavailable set it to null. Set image_url to null always — it will be filled in later. Return ONLY raw JSON, nothing else.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': auth, 'x-folder-id': folderId },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': auth,
+        'x-folder-id': folderId
+      },
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
         input: prompt,
@@ -62,10 +66,13 @@ IMPORTANT: Only include real products that actually exist on uae.sharafdg.com. U
 
     const raw = await yandexRes.text();
     let data;
-    try { data = JSON.parse(raw); } catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
+    try { data = JSON.parse(raw); }
+    catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
 
     if (!yandexRes.ok) {
-      return new Response(JSON.stringify({ error: 'Yandex error ' + yandexRes.status, detail: data }), { status: yandexRes.status, headers: cors });
+      return new Response(JSON.stringify({ error: 'Yandex error ' + yandexRes.status, detail: data }), {
+        status: yandexRes.status, headers: cors
+      });
     }
 
     let answer = '';
@@ -82,6 +89,26 @@ IMPORTANT: Only include real products that actually exist on uae.sharafdg.com. U
     let clean = answer.trim();
     if (clean.startsWith('```')) {
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
+    }
+
+    let parsed;
+    try { parsed = JSON.parse(clean); } catch(e) { parsed = null; }
+
+    if (parsed && parsed.products) {
+      await Promise.all(parsed.products.map(async (product) => {
+        if (!product.url) return;
+        try {
+          const pageRes = await fetch(product.url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; SharafDG-SmartSearch/1.0)' }
+          });
+          const html = await pageRes.text();
+          const match = html.match(/https:\/\/pimcdn\.sharafdg\.com\/[^"'\s>]+/);
+          if (match) {
+            product.image_url = match[0].replace(/width=\d+,height=\d+/, 'width=600,height=600');
+          }
+        } catch(e) {}
+      }));
+      clean = JSON.stringify(parsed);
     }
 
     return new Response(JSON.stringify({ answer: clean }), { status: 200, headers: cors });
