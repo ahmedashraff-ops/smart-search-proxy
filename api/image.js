@@ -20,13 +20,9 @@ export default async function handler(req) {
     });
   }
 
-  // Only allow Sharaf DG domains for security
-  const allowed = ['sharafdg.com', 'uae.sharafdg.com', 'cdn.sharafdg.com'];
-  const hostname = new URL(imageUrl).hostname;
-  const isAllowed = allowed.some(d => hostname === d || hostname.endsWith('.' + d));
-
-  if (!isAllowed) {
-    return new Response(JSON.stringify({ error: 'Domain not allowed' }), {
+  // Only allow HTTPS image URLs
+  if (!imageUrl.startsWith('https://')) {
+    return new Response(JSON.stringify({ error: 'Only HTTPS URLs are allowed' }), {
       status: 403,
       headers: { ...cors, 'Content-Type': 'application/json' }
     });
@@ -52,7 +48,7 @@ export default async function handler(req) {
       headers: {
         ...cors,
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
+        'Cache-Control': 'public, max-age=86400',
       }
     });
 
