@@ -26,12 +26,14 @@ export default async function handler(req) {
 
     const prompt = `${query}
 
-Based on this request, search for relevant products and return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
+Use web_search to search uae.sharafdg.com for real products matching this request. For each product found, visit the actual product page to get the real product image URL and product URL.
+
+Return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
 {
   "summary": "describe what you found and why these products suit the request",
   "products": [
     {
-      "name": "Full product name",
+      "name": "Full product name as shown on Sharaf DG",
       "brand": "Brand name",
       "specs": "Key specs e.g. 55 inch · 4K QLED · 120Hz",
       "price": 1299,
@@ -39,20 +41,16 @@ Based on this request, search for relevant products and return ONLY a valid JSON
       "energy_rating": "5 Star",
       "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
       "why": "specific reason this product suits the customer request",
-      "url": "https://uae.sharafdg.com/product-url-if-found",
-      "image_url": "https://uae.sharafdg.com/or-cdn-image-url-if-found"
+      "url": "https://uae.sharafdg.com/real-product-page-url",
+      "image_url": "https://uae.sharafdg.com/real-product-image-url.jpg"
     }
   ]
 }
-Always return 8 to 12 products. If fewer are found for the exact query, broaden your search to related products in the same category. If original_price is unavailable set it to null. If url is unavailable set it to null. If image_url is unavailable set it to null. Return ONLY raw JSON, nothing else.`;
+IMPORTANT: Only include real products that actually exist on uae.sharafdg.com. Use web_search to find them and extract the real product page URL and the actual product image URL (usually from media.sharafdg.com or a CDN). Always return 8 to 12 products. If original_price is unavailable set it to null. If url is unavailable set it to null. If image_url is unavailable set it to null. Return ONLY raw JSON, nothing else.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': auth,
-        'x-folder-id': folderId
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': auth, 'x-folder-id': folderId },
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
         input: prompt,
@@ -64,28 +62,23 @@ Always return 8 to 12 products. If fewer are found for the exact query, broaden 
 
     const raw = await yandexRes.text();
     let data;
-    try { data = JSON.parse(raw); }
-    catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
+    try { data = JSON.parse(raw); } catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
 
     if (!yandexRes.ok) {
-      return new Response(JSON.stringify({ error: 'Yandex error ' + yandexRes.status, detail: data }), {
-        status: yandexRes.status, headers: cors
-      });
+      return new Response(JSON.stringify({ error: 'Yandex error ' + yandexRes.status, detail: data }), { status: yandexRes.status, headers: cors });
     }
 
-    // Extract answer text
     let answer = '';
     if (data.output_text) {
       answer = data.output_text;
     } else if (data.output) {
       const msgBlock = data.output.find(o => o.type === 'message');
-      if (msgBlock && msgBlock.content) {
+      if (msgBlock?.content) {
         const textBlock = msgBlock.content.find(c => c.type === 'output_text' || c.type === 'text');
         if (textBlock) answer = textBlock.text;
       }
     }
 
-    // Strip markdown fences if model added them despite instructions
     let clean = answer.trim();
     if (clean.startsWith('```')) {
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
