@@ -1,79 +1,112 @@
 export const config = { runtime: 'edge' };
 
-// ── Category page map ──────────────────────────────────────────────────────
-// Maps keywords in the user query to known Sharaf DG category URLs.
-// We target category listing pages (SSR) instead of the JS-rendered search
-// endpoint (?q=...) which returns a near-empty HTML shell to crawlers.
+// ── Category brand map ─────────────────────────────────────────────────────
+// For each product category, defines:
+//   - keywords: to detect which category the query belongs to
+//   - category: the Sharaf DG category label used in search queries
+//   - brands: top brands to use in fallback brand-specific searches
 const CATEGORY_MAP = [
-  { keywords: ['oled','qled','tv','television','smart tv','uhd','4k tv','8k tv'],
-    urls: ['https://uae.sharafdg.com/televisions/',
-           'https://uae.sharafdg.com/product-category/televisions/'] },
-
-  { keywords: ['ac','air con','air-con','split','inverter','cooling','ton','btu'],
-    urls: ['https://uae.sharafdg.com/air-conditioners/',
-           'https://uae.sharafdg.com/product-category/air-conditioners/'] },
-
-  { keywords: ['fridge','refrigerator','freezer'],
-    urls: ['https://uae.sharafdg.com/refrigerators/',
-           'https://uae.sharafdg.com/product-category/refrigerators/'] },
-
-  { keywords: ['washing machine','washer','laundry','dryer','front load','top load'],
-    urls: ['https://uae.sharafdg.com/washing-machines/',
-           'https://uae.sharafdg.com/product-category/washing-machines/'] },
-
-  { keywords: ['dishwasher','dish washer'],
-    urls: ['https://uae.sharafdg.com/dishwashers/',
-           'https://uae.sharafdg.com/product-category/dishwashers/'] },
-
-  { keywords: ['microwave','oven','convection'],
-    urls: ['https://uae.sharafdg.com/microwave-ovens/',
-           'https://uae.sharafdg.com/product-category/microwave-ovens/'] },
-
-  { keywords: ['laptop','macbook','notebook','chromebook'],
-    urls: ['https://uae.sharafdg.com/laptops/',
-           'https://uae.sharafdg.com/product-category/laptops/'] },
-
-  { keywords: ['iphone','samsung phone','android','smartphone','mobile','5g phone'],
-    urls: ['https://uae.sharafdg.com/mobiles/',
-           'https://uae.sharafdg.com/product-category/mobiles/'] },
-
-  { keywords: ['tablet','ipad','android tab'],
-    urls: ['https://uae.sharafdg.com/tablets/',
-           'https://uae.sharafdg.com/product-category/tablets/'] },
-
-  { keywords: ['headphone','earphone','earbuds','airpods','speaker','soundbar','audio'],
-    urls: ['https://uae.sharafdg.com/audio/',
-           'https://uae.sharafdg.com/product-category/audio/'] },
-
-  { keywords: ['camera','dslr','mirrorless','gopro','action cam','webcam'],
-    urls: ['https://uae.sharafdg.com/cameras/',
-           'https://uae.sharafdg.com/product-category/cameras/'] },
-
-  { keywords: ['vacuum','robot vacuum','cleaner','hoover'],
-    urls: ['https://uae.sharafdg.com/vacuum-cleaners/',
-           'https://uae.sharafdg.com/product-category/vacuum-cleaners/'] },
-
-  { keywords: ['coffee','espresso','nespresso','kettle','blender','juicer','toaster','iron'],
-    urls: ['https://uae.sharafdg.com/small-appliances/',
-           'https://uae.sharafdg.com/product-category/small-appliances/'] },
-
-  { keywords: ['watch','smartwatch','apple watch','galaxy watch','garmin'],
-    urls: ['https://uae.sharafdg.com/wearables/',
-           'https://uae.sharafdg.com/product-category/wearables/'] },
-
-  { keywords: ['gaming','playstation','xbox','nintendo','ps5','ps4','console','game'],
-    urls: ['https://uae.sharafdg.com/gaming/',
-           'https://uae.sharafdg.com/product-category/gaming/'] },
+  {
+    keywords: ['oled','qled','tv','television','smart tv','uhd','4k tv','8k tv','55 inch','65 inch','75 inch','85 inch'],
+    category: 'TV',
+    brands:   ['Samsung','LG','Sony','TCL','Hisense','Panasonic','Philips']
+  },
+  {
+    keywords: ['ac','air con','air-con','split ac','inverter ac','cooling','1.5 ton','2 ton'],
+    category: 'air conditioner',
+    brands:   ['Samsung','LG','Daikin','Panasonic','Carrier','Midea','Hitachi','Gree']
+  },
+  {
+    keywords: ['fridge','refrigerator','freezer'],
+    category: 'refrigerator',
+    brands:   ['Samsung','LG','Bosch','Whirlpool','Hitachi','Haier','Beko']
+  },
+  {
+    keywords: ['washing machine','washer','laundry','dryer','front load','top load'],
+    category: 'washing machine',
+    brands:   ['Samsung','LG','Bosch','Whirlpool','Haier','Beko','Midea']
+  },
+  {
+    keywords: ['dishwasher'],
+    category: 'dishwasher',
+    brands:   ['Bosch','Samsung','LG','Midea','Beko','Whirlpool']
+  },
+  {
+    keywords: ['microwave','oven','convection oven'],
+    category: 'microwave',
+    brands:   ['Samsung','LG','Panasonic','Toshiba','Midea','Sharp']
+  },
+  {
+    keywords: ['laptop','macbook','notebook','chromebook'],
+    category: 'laptop',
+    brands:   ['Apple','Samsung','HP','Dell','Lenovo','Asus','Acer','Microsoft']
+  },
+  {
+    keywords: ['iphone','smartphone','mobile phone','5g phone','android phone'],
+    category: 'smartphone',
+    brands:   ['Apple','Samsung','Google','Huawei','Xiaomi','OnePlus','Oppo']
+  },
+  {
+    keywords: ['tablet','ipad'],
+    category: 'tablet',
+    brands:   ['Apple','Samsung','Lenovo','Huawei','Microsoft']
+  },
+  {
+    keywords: ['headphone','earphone','earbuds','airpods','speaker','soundbar','audio'],
+    category: 'audio',
+    brands:   ['Sony','JBL','Bose','Samsung','Apple','Sennheiser','LG']
+  },
+  {
+    keywords: ['camera','dslr','mirrorless','gopro','action cam'],
+    category: 'camera',
+    brands:   ['Sony','Canon','Nikon','Fujifilm','GoPro','Panasonic']
+  },
+  {
+    keywords: ['vacuum','robot vacuum','cleaner'],
+    category: 'vacuum cleaner',
+    brands:   ['Dyson','iRobot','Samsung','LG','Xiaomi','Philips','Miele']
+  },
+  {
+    keywords: ['gaming','ps5','playstation','xbox','nintendo'],
+    category: 'gaming',
+    brands:   ['Sony','Microsoft','Nintendo','Razer','Logitech']
+  },
+  {
+    keywords: ['smartwatch','watch','wearable','galaxy watch','apple watch'],
+    category: 'smartwatch',
+    brands:   ['Apple','Samsung','Garmin','Huawei','Fitbit']
+  },
 ];
 
-function getCategoryUrls(query) {
+function getCategoryInfo(query) {
   const q = query.toLowerCase();
   for (const entry of CATEGORY_MAP) {
     if (entry.keywords.some(k => q.includes(k))) {
-      return entry.urls;
+      return entry;
     }
   }
-  return ['https://uae.sharafdg.com/'];
+  return null;
+}
+
+// Build 3-4 distinct search queries for maximum product coverage
+function buildSearchQueries(query, categoryInfo) {
+  const queries = [];
+
+  // Query 1: exact customer request scoped to Sharaf DG
+  queries.push(`${query} site:uae.sharafdg.com`);
+
+  if (categoryInfo) {
+    // Query 2: category browse on Sharaf DG (finds listing pages)
+    queries.push(`${categoryInfo.category} site:uae.sharafdg.com`);
+
+    // Query 3 & 4: top 2 brands in this category
+    if (categoryInfo.brands.length >= 2) {
+      queries.push(`${categoryInfo.brands[0]} ${categoryInfo.category} site:uae.sharafdg.com`);
+      queries.push(`${categoryInfo.brands[1]} ${categoryInfo.category} site:uae.sharafdg.com`);
+    }
+  }
+
+  return queries;
 }
 // ──────────────────────────────────────────────────────────────────────────
 
@@ -101,48 +134,44 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    const categoryUrls = getCategoryUrls(query);
-    const urlList = categoryUrls.map(u => `- ${u}`).join('\n');
+    const categoryInfo   = getCategoryInfo(query);
+    const searchQueries  = buildSearchQueries(query, categoryInfo);
+    const queriesList    = searchQueries.map((q, i) => `${i + 1}. "${q}"`).join('\n');
 
     const prompt = `Customer request: "${query}"
 
-IMPORTANT: Do NOT use Sharaf DG search URLs (anything containing "?q=" or "post_type=product") — those pages are JavaScript-rendered and will appear empty to you. Always crawl category listing pages or individual product pages instead.
+You must run ALL of the following searches one by one to find as many real products as possible from Sharaf DG UAE:
 
-Follow these steps:
+${queriesList}
 
-Step 1 — Crawl these Sharaf DG category listing pages directly to find real products:
-${urlList}
-
-Step 2 — From those pages, collect every product relevant to the customer's request. If the first URL yields few results, try the second URL.
-
-Step 3 — If you still have fewer than 10 products after Step 2, search uae.sharafdg.com for the top brands in this category (e.g. "Samsung QLED site:uae.sharafdg.com", "LG OLED site:uae.sharafdg.com") to find additional individual product pages.
-
-Step 4 — Compile all unique real products found and rank the closest matches to the customer's request first. Target 10 to 14 products total.
-
-Rules:
-- ONLY include products you actually found on uae.sharafdg.com — never invent product names, models, specs, or prices
-- Include the exact product page URL if found; otherwise set url to null
-- Include the listed price if visible; otherwise set price to null
+After running all searches:
+- Collect every unique product found across all searches
+- Only include products that genuinely appeared in search results — never invent names, models, or prices
+- Rank products so the closest matches to the customer's original request appear first
+- Target 10 to 14 unique products total
+- If a product appears in multiple searches, include it only once
+- If a URL to the product page was visible in results, include it; otherwise set url to null
+- If a price was visible in results, include it; otherwise set price to null
 
 Return ONLY a raw JSON object — no markdown, no code fences, no explanation:
 {
   "summary": "Brief description of what you found and why these products suit the customer request",
   "products": [
     {
-      "name": "Exact product name as listed on uae.sharafdg.com",
+      "name": "Exact product name as found in search results",
       "brand": "Brand name",
       "specs": "Key specs e.g. 75 inch · 4K OLED · 120Hz · Smart TV",
       "price": 5999,
       "original_price": 7499,
       "energy_rating": "5 Star",
       "features": ["Feature 1", "Feature 2", "Feature 3"],
-      "why": "Specific reason this product suits the customer's request",
+      "why": "Specific reason this product suits the customer request",
       "url": "https://uae.sharafdg.com/product/actual-product-slug/"
     }
   ]
 }
 
-Set original_price to null if no sale/original price is shown. Return ONLY raw JSON.`;
+Set original_price to null if no sale/original price was visible. Return ONLY raw JSON.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
