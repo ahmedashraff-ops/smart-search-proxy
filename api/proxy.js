@@ -12,6 +12,10 @@ export default async function handler(req) {
   if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: cors });
   if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: cors });
 
+  // ── TIMEOUT CONTROLLER (55s — safely under Vercel's 60s max) ────────────
+  const controller = new AbortController();
+  const timeoutId  = setTimeout(() => controller.abort(), 55000);
+
   try {
     const body      = await req.json();
     const apiKey    = String(body.apiKey    || '');
@@ -20,6 +24,7 @@ export default async function handler(req) {
     const query     = String(body.query     || '');
 
     if (!apiKey || !folderId || !promptId || !query) {
+      clearTimeout(timeoutId);
       return new Response(
         JSON.stringify({ error: 'Missing: apiKey, folderId, promptId, query' }),
         { status: 400, headers: cors }
@@ -38,8 +43,11 @@ export default async function handler(req) {
       body: JSON.stringify({
         prompt: { id: promptId },
         input: query
-      })
+      }),
+      signal: controller.signal   // ← abort if Yandex takes too long
     });
+
+    clearTimeout(timeoutId);      // ← Yandex responded in time, cancel the timer
 
     const raw = await yandexRes.text();
     let data;
@@ -74,6 +82,12 @@ export default async function handler(req) {
     return new Response(JSON.stringify({ answer: clean }), { status: 200, headers: cors });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: cors });
+    clearTimeout(timeoutId);
+    // Return a clear timeout message instead of the generic "Failed to fetch"
+    const isTimeout = err.name === 'AbortError';
+    return new Response(
+      JSON.stringify({ error: isTimeout ? 'Request timed out — Yandex took too long. Please try again.' : err.message }),
+      { status: isTimeout ? 504 : 500, headers: cors }
+    );
   }
 }
