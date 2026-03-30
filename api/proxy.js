@@ -1,111 +1,5 @@
 export const config = { runtime: 'edge' };
 
-// ── Category brand map ─────────────────────────────────────────────────────
-// allowed_domains in the tool config already restricts all searches to
-// uae.sharafdg.com — no need for site: operators in the query strings.
-const CATEGORY_MAP = [
-  {
-    keywords: ['oled','qled','tv','television','smart tv','uhd','4k tv','8k tv','55 inch','65 inch','75 inch','85 inch'],
-    category: 'TV',
-    brands:   ['Samsung','LG','Sony','TCL','Hisense','Panasonic']
-  },
-  {
-    keywords: ['ac','air con','air-con','split ac','inverter ac','cooling','1.5 ton','2 ton'],
-    category: 'air conditioner',
-    brands:   ['Samsung','LG','Daikin','Panasonic','Carrier','Midea','Hitachi']
-  },
-  {
-    keywords: ['fridge','refrigerator','freezer'],
-    category: 'refrigerator',
-    brands:   ['Samsung','LG','Bosch','Whirlpool','Hitachi','Haier']
-  },
-  {
-    keywords: ['washing machine','washer','laundry','dryer','front load','top load'],
-    category: 'washing machine',
-    brands:   ['Samsung','LG','Bosch','Whirlpool','Haier','Midea']
-  },
-  {
-    keywords: ['dishwasher'],
-    category: 'dishwasher',
-    brands:   ['Bosch','Samsung','LG','Midea','Beko']
-  },
-  {
-    keywords: ['microwave','oven','convection oven'],
-    category: 'microwave',
-    brands:   ['Samsung','LG','Panasonic','Toshiba','Sharp']
-  },
-  {
-    keywords: ['laptop','macbook','notebook','chromebook'],
-    category: 'laptop',
-    brands:   ['Apple','Samsung','HP','Dell','Lenovo','Asus']
-  },
-  {
-    keywords: ['iphone','smartphone','mobile phone','5g phone','android phone'],
-    category: 'smartphone',
-    brands:   ['Apple','Samsung','Google','Xiaomi','OnePlus','Oppo']
-  },
-  {
-    keywords: ['tablet','ipad'],
-    category: 'tablet',
-    brands:   ['Apple','Samsung','Lenovo','Huawei','Microsoft']
-  },
-  {
-    keywords: ['headphone','earphone','earbuds','airpods','speaker','soundbar','audio'],
-    category: 'audio',
-    brands:   ['Sony','JBL','Bose','Samsung','Apple','Sennheiser']
-  },
-  {
-    keywords: ['camera','dslr','mirrorless','gopro','action cam'],
-    category: 'camera',
-    brands:   ['Sony','Canon','Nikon','Fujifilm','GoPro']
-  },
-  {
-    keywords: ['vacuum','robot vacuum','cleaner'],
-    category: 'vacuum cleaner',
-    brands:   ['Dyson','iRobot','Samsung','LG','Xiaomi','Philips']
-  },
-  {
-    keywords: ['gaming','ps5','playstation','xbox','nintendo'],
-    category: 'gaming',
-    brands:   ['Sony','Microsoft','Nintendo','Razer']
-  },
-  {
-    keywords: ['smartwatch','watch','wearable','galaxy watch','apple watch'],
-    category: 'smartwatch',
-    brands:   ['Apple','Samsung','Garmin','Huawei','Fitbit']
-  },
-];
-
-function getCategoryInfo(query) {
-  const q = query.toLowerCase();
-  for (const entry of CATEGORY_MAP) {
-    if (entry.keywords.some(k => q.includes(k))) return entry;
-  }
-  return null;
-}
-
-// Build 3-4 plain search queries — NO site: operator.
-// The web_search tool's allowed_domains filter already scopes
-// all results to uae.sharafdg.com automatically.
-function buildSearchQueries(query, categoryInfo) {
-  const queries = [];
-
-  // Q1: exact customer request
-  queries.push(query);
-
-  if (categoryInfo) {
-    // Q2: broad category — catches listing pages & more SKUs
-    queries.push(`${categoryInfo.category} Sharaf DG UAE`);
-
-    // Q3 & Q4: top brands in category — maximises product count
-    queries.push(`${categoryInfo.brands[0]} ${categoryInfo.category}`);
-    queries.push(`${categoryInfo.brands[1]} ${categoryInfo.category}`);
-  }
-
-  return queries;
-}
-// ──────────────────────────────────────────────────────────────────────────
-
 export default async function handler(req) {
 
   const cors = {
@@ -116,7 +10,7 @@ export default async function handler(req) {
   };
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 200, headers: cors });
-  if (req.method !== 'POST')   return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: cors });
+  if (req.method !== 'POST') return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: cors });
 
   try {
     const body     = await req.json();
@@ -130,66 +24,47 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    const categoryInfo  = getCategoryInfo(query);
-    const searchQueries = buildSearchQueries(query, categoryInfo);
-    const queriesList   = searchQueries.map((q, i) => `${i + 1}. ${q}`).join('\n');
+    const prompt = `${query}
 
-    const prompt = `Customer request: "${query}"
-
-Run each of the following searches one by one and collect all unique products found across all of them:
-
-${queriesList}
-
-Instructions:
-- Run ALL searches above before compiling your answer
-- Collect every unique product that appears across all search results
-- Only include products that genuinely appeared in the search results — never invent names, models, specs, or prices
-- If the same product appears in multiple searches, include it only once
-- Rank products so the closest matches to the customer's original request come first
-- Aim for 10 to 14 unique products total; if fewer exist on the site for this query that is acceptable
-- If a product page URL was visible in results, include it; otherwise set url to null
-- If a price was visible in results, include it; otherwise set price to null
-
-Return ONLY a raw JSON object — no markdown, no code fences, no explanation:
+Based on this request, search for relevant products and return ONLY a valid JSON object — no markdown, no code fences, no backticks, no explanation, just raw JSON:
 {
-  "summary": "Brief description of what you found and why these products suit the customer request",
+  "summary": "describe what you found and why these products suit the request",
   "products": [
     {
-      "name": "Exact product name as found in search results",
+      "name": "Full product name",
       "brand": "Brand name",
-      "specs": "Key specs e.g. 75 inch · 4K OLED · 120Hz · Smart TV",
-      "price": 5999,
-      "original_price": 7499,
+      "specs": "Key specs e.g. 55 inch · 4K QLED · 120Hz",
+      "price": 1299,
+      "original_price": 1599,
       "energy_rating": "5 Star",
-      "features": ["Feature 1", "Feature 2", "Feature 3"],
-      "why": "Specific reason this product suits the customer request",
-      "url": "https://uae.sharafdg.com/product/actual-product-slug/"
+      "features": ["Feature 1", "Feature 2", "Feature 3", "Feature 4", "Feature 5"],
+      "why": "specific reason this product suits the customer request",
+      "url": "https://uae.sharafdg.com/product-url-if-found"
     }
   ]
 }
-
-Set original_price to null if no sale price was shown. Return ONLY raw JSON.`;
+Always return 8 to 12 products. If fewer are found for the exact query, broaden your search to related products in the same category. If original_price is unavailable set it to null. If url is unavailable set it to null. Return ONLY raw JSON, nothing else.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
       headers: {
-        'Content-Type':  'application/json',
+        'Content-Type': 'application/json',
         'Authorization': auth,
-        'x-folder-id':   folderId
+        'x-folder-id': folderId
       },
       body: JSON.stringify({
-        model:             'gpt://' + folderId + '/yandexgpt',
-        input:             prompt,
-        tools:             [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
-        temperature:       0.3,
-        max_output_tokens: 6000
+        model: 'gpt://' + folderId + '/yandexgpt',
+        input: prompt,
+        tools: [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
+        temperature: 0.2,
+        max_output_tokens: 4000
       })
     });
 
     const raw = await yandexRes.text();
     let data;
     try { data = JSON.parse(raw); }
-    catch (e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
+    catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
 
     if (!yandexRes.ok) {
       return new Response(JSON.stringify({ error: 'Yandex error ' + yandexRes.status, detail: data }), {
@@ -197,13 +72,13 @@ Set original_price to null if no sale price was shown. Return ONLY raw JSON.`;
       });
     }
 
-    // Extract the text answer
+    // Extract answer text
     let answer = '';
     if (data.output_text) {
       answer = data.output_text;
     } else if (data.output) {
       const msgBlock = data.output.find(o => o.type === 'message');
-      if (msgBlock?.content) {
+      if (msgBlock && msgBlock.content) {
         const textBlock = msgBlock.content.find(c => c.type === 'output_text' || c.type === 'text');
         if (textBlock) answer = textBlock.text;
       }
@@ -214,22 +89,6 @@ Set original_price to null if no sale price was shown. Return ONLY raw JSON.`;
     if (clean.startsWith('```')) {
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
     }
-
-    // Soft hallucination guard — only block if >75% of products are clearly placeholders
-    try {
-      const parsed = JSON.parse(clean.match(/(\{[\s\S]*\})/)?.[1] || clean);
-      if (parsed?.products?.length) {
-        const fakePattern = /^(brand\s*[a-z]|model\s*[a-z]|product\s*[a-z]|brand\s*\d|unknown brand)/i;
-        const fakeCount = parsed.products.filter(p =>
-          fakePattern.test(p.brand || '') && fakePattern.test(p.name || '')
-        ).length;
-        if (fakeCount / parsed.products.length > 0.75) {
-          return new Response(JSON.stringify({
-            error: 'The AI could not find real products for this search. Try a more specific query, e.g. include a brand name or product category.'
-          }), { status: 422, headers: cors });
-        }
-      }
-    } catch (e) { /* parsing handled on frontend */ }
 
     return new Response(JSON.stringify({ answer: clean }), { status: 200, headers: cors });
 
