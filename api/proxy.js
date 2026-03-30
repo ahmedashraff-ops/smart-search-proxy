@@ -24,7 +24,7 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    const prompt = `Customer request: "${query}"
+    const prompt = `${query}
 
 Search Sharaf DG UAE and find real products that match this request. Only include products you actually found via search — never invent names or make up products.
 
