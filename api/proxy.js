@@ -1,50 +1,48 @@
 export const config = { runtime: 'edge' };
 
 // ── Category brand map ─────────────────────────────────────────────────────
-// For each product category, defines:
-//   - keywords: to detect which category the query belongs to
-//   - category: the Sharaf DG category label used in search queries
-//   - brands: top brands to use in fallback brand-specific searches
+// allowed_domains in the tool config already restricts all searches to
+// uae.sharafdg.com — no need for site: operators in the query strings.
 const CATEGORY_MAP = [
   {
     keywords: ['oled','qled','tv','television','smart tv','uhd','4k tv','8k tv','55 inch','65 inch','75 inch','85 inch'],
     category: 'TV',
-    brands:   ['Samsung','LG','Sony','TCL','Hisense','Panasonic','Philips']
+    brands:   ['Samsung','LG','Sony','TCL','Hisense','Panasonic']
   },
   {
     keywords: ['ac','air con','air-con','split ac','inverter ac','cooling','1.5 ton','2 ton'],
     category: 'air conditioner',
-    brands:   ['Samsung','LG','Daikin','Panasonic','Carrier','Midea','Hitachi','Gree']
+    brands:   ['Samsung','LG','Daikin','Panasonic','Carrier','Midea','Hitachi']
   },
   {
     keywords: ['fridge','refrigerator','freezer'],
     category: 'refrigerator',
-    brands:   ['Samsung','LG','Bosch','Whirlpool','Hitachi','Haier','Beko']
+    brands:   ['Samsung','LG','Bosch','Whirlpool','Hitachi','Haier']
   },
   {
     keywords: ['washing machine','washer','laundry','dryer','front load','top load'],
     category: 'washing machine',
-    brands:   ['Samsung','LG','Bosch','Whirlpool','Haier','Beko','Midea']
+    brands:   ['Samsung','LG','Bosch','Whirlpool','Haier','Midea']
   },
   {
     keywords: ['dishwasher'],
     category: 'dishwasher',
-    brands:   ['Bosch','Samsung','LG','Midea','Beko','Whirlpool']
+    brands:   ['Bosch','Samsung','LG','Midea','Beko']
   },
   {
     keywords: ['microwave','oven','convection oven'],
     category: 'microwave',
-    brands:   ['Samsung','LG','Panasonic','Toshiba','Midea','Sharp']
+    brands:   ['Samsung','LG','Panasonic','Toshiba','Sharp']
   },
   {
     keywords: ['laptop','macbook','notebook','chromebook'],
     category: 'laptop',
-    brands:   ['Apple','Samsung','HP','Dell','Lenovo','Asus','Acer','Microsoft']
+    brands:   ['Apple','Samsung','HP','Dell','Lenovo','Asus']
   },
   {
     keywords: ['iphone','smartphone','mobile phone','5g phone','android phone'],
     category: 'smartphone',
-    brands:   ['Apple','Samsung','Google','Huawei','Xiaomi','OnePlus','Oppo']
+    brands:   ['Apple','Samsung','Google','Xiaomi','OnePlus','Oppo']
   },
   {
     keywords: ['tablet','ipad'],
@@ -54,22 +52,22 @@ const CATEGORY_MAP = [
   {
     keywords: ['headphone','earphone','earbuds','airpods','speaker','soundbar','audio'],
     category: 'audio',
-    brands:   ['Sony','JBL','Bose','Samsung','Apple','Sennheiser','LG']
+    brands:   ['Sony','JBL','Bose','Samsung','Apple','Sennheiser']
   },
   {
     keywords: ['camera','dslr','mirrorless','gopro','action cam'],
     category: 'camera',
-    brands:   ['Sony','Canon','Nikon','Fujifilm','GoPro','Panasonic']
+    brands:   ['Sony','Canon','Nikon','Fujifilm','GoPro']
   },
   {
     keywords: ['vacuum','robot vacuum','cleaner'],
     category: 'vacuum cleaner',
-    brands:   ['Dyson','iRobot','Samsung','LG','Xiaomi','Philips','Miele']
+    brands:   ['Dyson','iRobot','Samsung','LG','Xiaomi','Philips']
   },
   {
     keywords: ['gaming','ps5','playstation','xbox','nintendo'],
     category: 'gaming',
-    brands:   ['Sony','Microsoft','Nintendo','Razer','Logitech']
+    brands:   ['Sony','Microsoft','Nintendo','Razer']
   },
   {
     keywords: ['smartwatch','watch','wearable','galaxy watch','apple watch'],
@@ -81,29 +79,27 @@ const CATEGORY_MAP = [
 function getCategoryInfo(query) {
   const q = query.toLowerCase();
   for (const entry of CATEGORY_MAP) {
-    if (entry.keywords.some(k => q.includes(k))) {
-      return entry;
-    }
+    if (entry.keywords.some(k => q.includes(k))) return entry;
   }
   return null;
 }
 
-// Build 3-4 distinct search queries for maximum product coverage
+// Build 3-4 plain search queries — NO site: operator.
+// The web_search tool's allowed_domains filter already scopes
+// all results to uae.sharafdg.com automatically.
 function buildSearchQueries(query, categoryInfo) {
   const queries = [];
 
-  // Query 1: exact customer request scoped to Sharaf DG
-  queries.push(`${query} site:uae.sharafdg.com`);
+  // Q1: exact customer request
+  queries.push(query);
 
   if (categoryInfo) {
-    // Query 2: category browse on Sharaf DG (finds listing pages)
-    queries.push(`${categoryInfo.category} site:uae.sharafdg.com`);
+    // Q2: broad category — catches listing pages & more SKUs
+    queries.push(`${categoryInfo.category} Sharaf DG UAE`);
 
-    // Query 3 & 4: top 2 brands in this category
-    if (categoryInfo.brands.length >= 2) {
-      queries.push(`${categoryInfo.brands[0]} ${categoryInfo.category} site:uae.sharafdg.com`);
-      queries.push(`${categoryInfo.brands[1]} ${categoryInfo.category} site:uae.sharafdg.com`);
-    }
+    // Q3 & Q4: top brands in category — maximises product count
+    queries.push(`${categoryInfo.brands[0]} ${categoryInfo.category}`);
+    queries.push(`${categoryInfo.brands[1]} ${categoryInfo.category}`);
   }
 
   return queries;
@@ -134,23 +130,24 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    const categoryInfo   = getCategoryInfo(query);
-    const searchQueries  = buildSearchQueries(query, categoryInfo);
-    const queriesList    = searchQueries.map((q, i) => `${i + 1}. "${q}"`).join('\n');
+    const categoryInfo  = getCategoryInfo(query);
+    const searchQueries = buildSearchQueries(query, categoryInfo);
+    const queriesList   = searchQueries.map((q, i) => `${i + 1}. ${q}`).join('\n');
 
     const prompt = `Customer request: "${query}"
 
-You must run ALL of the following searches one by one to find as many real products as possible from Sharaf DG UAE:
+Run each of the following searches one by one and collect all unique products found across all of them:
 
 ${queriesList}
 
-After running all searches:
-- Collect every unique product found across all searches
-- Only include products that genuinely appeared in search results — never invent names, models, or prices
-- Rank products so the closest matches to the customer's original request appear first
-- Target 10 to 14 unique products total
-- If a product appears in multiple searches, include it only once
-- If a URL to the product page was visible in results, include it; otherwise set url to null
+Instructions:
+- Run ALL searches above before compiling your answer
+- Collect every unique product that appears across all search results
+- Only include products that genuinely appeared in the search results — never invent names, models, specs, or prices
+- If the same product appears in multiple searches, include it only once
+- Rank products so the closest matches to the customer's original request come first
+- Aim for 10 to 14 unique products total; if fewer exist on the site for this query that is acceptable
+- If a product page URL was visible in results, include it; otherwise set url to null
 - If a price was visible in results, include it; otherwise set price to null
 
 Return ONLY a raw JSON object — no markdown, no code fences, no explanation:
@@ -171,7 +168,7 @@ Return ONLY a raw JSON object — no markdown, no code fences, no explanation:
   ]
 }
 
-Set original_price to null if no sale/original price was visible. Return ONLY raw JSON.`;
+Set original_price to null if no sale price was shown. Return ONLY raw JSON.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
