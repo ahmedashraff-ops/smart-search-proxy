@@ -17,11 +17,11 @@ export default async function handler(req) {
   const timeoutId  = setTimeout(() => controller.abort(), 55000);
 
   try {
-    const body      = await req.json();
-    const apiKey    = String(body.apiKey    || '');
-    const folderId  = String(body.folderId  || '');
-    const promptId  = String(body.promptId  || '');
-    const query     = String(body.query     || '');
+    const body     = await req.json();
+    const apiKey   = String(body.apiKey || '');
+    const folderId = String(body.folderId || '');
+    const promptId = String(body.promptId || '');
+    const query    = String(body.query || '');
 
     if (!apiKey || !folderId || !promptId || !query) {
       clearTimeout(timeoutId);
@@ -44,15 +44,18 @@ export default async function handler(req) {
         prompt: { id: promptId },
         input: query
       }),
-      signal: controller.signal   // ← abort if Yandex takes too long
+      signal: controller.signal
     });
 
-    clearTimeout(timeoutId);      // ← Yandex responded in time, cancel the timer
+    clearTimeout(timeoutId);
 
     const raw = await yandexRes.text();
     let data;
-    try { data = JSON.parse(raw); }
-    catch(e) { data = { parseError: e.message, rawResponse: raw.substring(0, 800) }; }
+    try {
+      data = JSON.parse(raw);
+    } catch (e) {
+      data = { parseError: e.message, rawResponse: raw.substring(0, 800) };
+    }
 
     if (!yandexRes.ok) {
       return new Response(
@@ -79,11 +82,13 @@ export default async function handler(req) {
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
     }
 
-    return new Response(JSON.stringify({ answer: clean }), { status: 200, headers: cors });
+    return new Response(JSON.stringify({ answer: clean, raw: data }), {
+      status: 200,
+      headers: cors
+    });
 
   } catch (err) {
     clearTimeout(timeoutId);
-    // Return a clear timeout message instead of the generic "Failed to fetch"
     const isTimeout = err.name === 'AbortError';
     return new Response(
       JSON.stringify({ error: isTimeout ? 'Request timed out — Yandex took too long. Please try again.' : err.message }),
