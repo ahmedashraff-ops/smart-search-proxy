@@ -1,8 +1,7 @@
 {
   "functions": {
     "api/proxy.js": {
-      "memory": 128,
-      "maxDuration": 50
+      "maxDuration": 60
     }
   }
 }
