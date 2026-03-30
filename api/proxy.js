@@ -26,20 +26,23 @@ export default async function handler(req) {
 
     const prompt = `${query}
 
-You must search uae.sharafdg.com multiple times using different search strategies to find as many real matching products as possible:
+Search Sharaf DG UAE and find real products that match this request. Only include products you actually found via search — never invent names or make up products.
+
+If fewer are found for the exact query, broaden your search to related products in the same category.
 
 1. First search: use the customer's exact request as the query
 2. Second search: broaden to the product category (e.g. if they asked for "50 inch QLED TV", search for "QLED TV" or "Smart TV 50 inch")
 3. Third search: search by major brands in this category (e.g. "Samsung TV", "LG TV", "Sony TV" etc.)
-4. Combine all unique results — aim for 10 to 14 distinct products total
+4. Combine all unique results — aim for 8 to 12 distinct products total
 
 Rules:
 - Only include products you actually found on uae.sharafdg.com during your searches
 - Do NOT invent product names, models, or prices
 - If a product URL was in the search results, include it exactly as found
 - If a price was shown in search results, include it; otherwise set to null
-- If fewer than 10 products exist for the exact query, include closely related products from the same category that a customer with this request would also consider
 - Rank products so the closest matches to the original request appear first
+
+
 
 Return ONLY a raw JSON object — no markdown, no code fences, no explanation:
 {
@@ -107,7 +110,7 @@ Set original_price to null if no sale price found. Set url to null if not found.
     }
 
     // Soft hallucination check — only block if ALL products look like obvious placeholders.
-    // We use a strict pattern and a high threshold (75%) so real-but-oddly-named products
+    // We use a strict pattern and a high threshold (60%) so real-but-oddly-named products
     // are not incorrectly blocked. If only a minority look fake, we let them through
     // so the genuine results still reach the user.
     try {
@@ -117,8 +120,8 @@ Set original_price to null if no sale price found. Set url to null if not found.
         const fakeCount = parsed.products.filter(p =>
           fakePattern.test(p.brand || '') && fakePattern.test(p.name || '')
         ).length;
-        // Only reject if more than 60% are clearly fake
-        if (fakeCount / parsed.products.length > 0.60) {
+        // Only reject if more than 30% are clearly fake
+        if (fakeCount / parsed.products.length > 0.30) {
           return new Response(JSON.stringify({
             error: 'The AI could not find real products for this search. Try a more specific query, e.g. include a brand name or product category.'
           }), { status: 422, headers: cors });
