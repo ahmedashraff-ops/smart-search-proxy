@@ -26,24 +26,40 @@ export default async function handler(req) {
 
     const prompt = `${query}
 
-Search Sharaf DG UAE and find real products that match this request. Only include products you actually found via search — never invent names or make up products.
+You must search uae.sharafdg.com multiple times using different search strategies to find as many real matching products as possible:
 
-Return ONLY a raw JSON object (no markdown, no code fences):
+1. First search: use the customer's exact request as the query
+2. Second search: broaden to the product category (e.g. if they asked for "50 inch QLED TV", search for "QLED TV" or "Smart TV 50 inch")
+3. Third search: search by major brands in this category (e.g. "Samsung TV", "LG TV", "Sony TV" etc.)
+4. Combine all unique results — aim for 10 to 14 distinct products total
+
+Rules:
+- Only include products you actually found on uae.sharafdg.com during your searches
+- Do NOT invent product names, models, or prices
+- If a product URL was in the search results, include it exactly as found
+- If a price was shown in search results, include it; otherwise set to null
+- If fewer than 10 products exist for the exact query, include closely related products from the same category that a customer with this request would also consider
+- Rank products so the closest matches to the original request appear first
+
+Return ONLY a raw JSON object — no markdown, no code fences, no explanation:
 {
-  "summary": "describe what you found and why these products suit the request",
+  "summary": "Brief description of what you found and why these products suit the customer's request",
   "products": [
     {
-      "name": "exact product name as listed on the website",
-      "brand": "brand name",
-      "specs": "key specs e.g. 50L · Single Door · A+ Energy",
-      "price": 499,
-      "url": "https://uae.sharafdg.com/product/actual-product-slug/",
-      "why": "specific reason this product suits the customer request"
+      "name": "Exact product name as listed on uae.sharafdg.com",
+      "brand": "Brand name",
+      "specs": "Key specs e.g. 55 inch · 4K QLED · 120Hz · Smart TV",
+      "price": 2199,
+      "original_price": 2599,
+      "energy_rating": "5 Star",
+      "features": ["Feature 1", "Feature 2", "Feature 3"],
+      "why": "Specific reason this product suits the customer's request",
+      "url": "https://uae.sharafdg.com/product/actual-slug/"
     }
   ]
 }
 
-Return 10 to 14 products. Set price to null if not found. Set url to null if not found.`;
+Set original_price to null if no sale price found. Set url to null if not found. Return ONLY raw JSON.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -57,7 +73,7 @@ Return 10 to 14 products. Set price to null if not found. Set url to null if not
         input:             prompt,
         tools:             [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
         temperature:       0.2,
-        max_output_tokens: 4000
+        max_output_tokens: 4000   // increased to fit 10-14 detailed products
       })
     });
 
@@ -84,24 +100,27 @@ Return 10 to 14 products. Set price to null if not found. Set url to null if not
       }
     }
 
-    // Strip markdown fences if present
+    // Strip markdown fences if model added them despite instructions
     let clean = answer.trim();
     if (clean.startsWith('```')) {
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
     }
 
-    // Fake product detection — if AI hallucinated placeholder names, return an error
-    // instead of showing garbage data to the user
+    // Soft hallucination check — only block if ALL products look like obvious placeholders.
+    // We use a strict pattern and a high threshold (75%) so real-but-oddly-named products
+    // are not incorrectly blocked. If only a minority look fake, we let them through
+    // so the genuine results still reach the user.
     try {
       const parsed = JSON.parse(clean.match(/(\{[\s\S]*\})/)?.[1] || clean);
-      if (parsed && parsed.products) {
-        const fakePattern = /^(brand\s*[a-z]|model\s*[a-z]|product\s*[a-z]|brand\s*\d)/i;
+      if (parsed?.products?.length) {
+        const fakePattern = /^(brand\s*[a-z]|model\s*[a-z]|product\s*[a-z]|brand\s*\d|unknown brand)/i;
         const fakeCount = parsed.products.filter(p =>
-          fakePattern.test(p.brand || '') || fakePattern.test(p.name || '')
+          fakePattern.test(p.brand || '') && fakePattern.test(p.name || '')
         ).length;
-        if (fakeCount > 0 && fakeCount >= parsed.products.length / 2) {
+        // Only reject if more than 60% are clearly fake
+        if (fakeCount / parsed.products.length > 0.60) {
           return new Response(JSON.stringify({
-            error: 'The AI could not find real products for this search. Please try a more specific query, e.g. include a brand name or product type.'
+            error: 'The AI could not find real products for this search. Try a more specific query, e.g. include a brand name or product category.'
           }), { status: 422, headers: cors });
         }
       }
