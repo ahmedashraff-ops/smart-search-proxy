@@ -1,5 +1,82 @@
 export const config = { runtime: 'edge' };
 
+// ── Category page map ──────────────────────────────────────────────────────
+// Maps keywords in the user query to known Sharaf DG category URLs.
+// We target category listing pages (SSR) instead of the JS-rendered search
+// endpoint (?q=...) which returns a near-empty HTML shell to crawlers.
+const CATEGORY_MAP = [
+  { keywords: ['oled','qled','tv','television','smart tv','uhd','4k tv','8k tv'],
+    urls: ['https://uae.sharafdg.com/televisions/',
+           'https://uae.sharafdg.com/product-category/televisions/'] },
+
+  { keywords: ['ac','air con','air-con','split','inverter','cooling','ton','btu'],
+    urls: ['https://uae.sharafdg.com/air-conditioners/',
+           'https://uae.sharafdg.com/product-category/air-conditioners/'] },
+
+  { keywords: ['fridge','refrigerator','freezer'],
+    urls: ['https://uae.sharafdg.com/refrigerators/',
+           'https://uae.sharafdg.com/product-category/refrigerators/'] },
+
+  { keywords: ['washing machine','washer','laundry','dryer','front load','top load'],
+    urls: ['https://uae.sharafdg.com/washing-machines/',
+           'https://uae.sharafdg.com/product-category/washing-machines/'] },
+
+  { keywords: ['dishwasher','dish washer'],
+    urls: ['https://uae.sharafdg.com/dishwashers/',
+           'https://uae.sharafdg.com/product-category/dishwashers/'] },
+
+  { keywords: ['microwave','oven','convection'],
+    urls: ['https://uae.sharafdg.com/microwave-ovens/',
+           'https://uae.sharafdg.com/product-category/microwave-ovens/'] },
+
+  { keywords: ['laptop','macbook','notebook','chromebook'],
+    urls: ['https://uae.sharafdg.com/laptops/',
+           'https://uae.sharafdg.com/product-category/laptops/'] },
+
+  { keywords: ['iphone','samsung phone','android','smartphone','mobile','5g phone'],
+    urls: ['https://uae.sharafdg.com/mobiles/',
+           'https://uae.sharafdg.com/product-category/mobiles/'] },
+
+  { keywords: ['tablet','ipad','android tab'],
+    urls: ['https://uae.sharafdg.com/tablets/',
+           'https://uae.sharafdg.com/product-category/tablets/'] },
+
+  { keywords: ['headphone','earphone','earbuds','airpods','speaker','soundbar','audio'],
+    urls: ['https://uae.sharafdg.com/audio/',
+           'https://uae.sharafdg.com/product-category/audio/'] },
+
+  { keywords: ['camera','dslr','mirrorless','gopro','action cam','webcam'],
+    urls: ['https://uae.sharafdg.com/cameras/',
+           'https://uae.sharafdg.com/product-category/cameras/'] },
+
+  { keywords: ['vacuum','robot vacuum','cleaner','hoover'],
+    urls: ['https://uae.sharafdg.com/vacuum-cleaners/',
+           'https://uae.sharafdg.com/product-category/vacuum-cleaners/'] },
+
+  { keywords: ['coffee','espresso','nespresso','kettle','blender','juicer','toaster','iron'],
+    urls: ['https://uae.sharafdg.com/small-appliances/',
+           'https://uae.sharafdg.com/product-category/small-appliances/'] },
+
+  { keywords: ['watch','smartwatch','apple watch','galaxy watch','garmin'],
+    urls: ['https://uae.sharafdg.com/wearables/',
+           'https://uae.sharafdg.com/product-category/wearables/'] },
+
+  { keywords: ['gaming','playstation','xbox','nintendo','ps5','ps4','console','game'],
+    urls: ['https://uae.sharafdg.com/gaming/',
+           'https://uae.sharafdg.com/product-category/gaming/'] },
+];
+
+function getCategoryUrls(query) {
+  const q = query.toLowerCase();
+  for (const entry of CATEGORY_MAP) {
+    if (entry.keywords.some(k => q.includes(k))) {
+      return entry.urls;
+    }
+  }
+  return ['https://uae.sharafdg.com/'];
+}
+// ──────────────────────────────────────────────────────────────────────────
+
 export default async function handler(req) {
 
   const cors = {
@@ -24,45 +101,48 @@ export default async function handler(req) {
 
     const auth = apiKey.startsWith('t1.') ? 'Bearer ' + apiKey : 'Api-Key ' + apiKey;
 
-    const prompt = `${query}
+    const categoryUrls = getCategoryUrls(query);
+    const urlList = categoryUrls.map(u => `- ${u}`).join('\n');
 
-Search Sharaf DG UAE and find real products that match this request. Only include products you actually found via search — never invent names or make up products.
+    const prompt = `Customer request: "${query}"
 
-If fewer are found for the exact query, broaden your search to related products in the same category.
+IMPORTANT: Do NOT use Sharaf DG search URLs (anything containing "?q=" or "post_type=product") — those pages are JavaScript-rendered and will appear empty to you. Always crawl category listing pages or individual product pages instead.
 
-1. First search: use the customer's exact request as the query
-2. Second search: broaden to the product category (e.g. if they asked for "50 inch QLED TV", search for "QLED TV" or "Smart TV 50 inch")
-3. Third search: search by major brands in this category (e.g. "Samsung TV", "LG TV", "Sony TV" etc.)
-4. Combine all unique results — aim for 8 to 12 distinct products total
+Follow these steps:
+
+Step 1 — Crawl these Sharaf DG category listing pages directly to find real products:
+${urlList}
+
+Step 2 — From those pages, collect every product relevant to the customer's request. If the first URL yields few results, try the second URL.
+
+Step 3 — If you still have fewer than 10 products after Step 2, search uae.sharafdg.com for the top brands in this category (e.g. "Samsung QLED site:uae.sharafdg.com", "LG OLED site:uae.sharafdg.com") to find additional individual product pages.
+
+Step 4 — Compile all unique real products found and rank the closest matches to the customer's request first. Target 10 to 14 products total.
 
 Rules:
-- Only include products you actually found on uae.sharafdg.com during your searches
-- Do NOT invent product names, models, or prices
-- If a product URL was in the search results, include it exactly as found
-- If a price was shown in search results, include it; otherwise set to null
-- Rank products so the closest matches to the original request appear first
-
-
+- ONLY include products you actually found on uae.sharafdg.com — never invent product names, models, specs, or prices
+- Include the exact product page URL if found; otherwise set url to null
+- Include the listed price if visible; otherwise set price to null
 
 Return ONLY a raw JSON object — no markdown, no code fences, no explanation:
 {
-  "summary": "Brief description of what you found and why these products suit the customer's request",
+  "summary": "Brief description of what you found and why these products suit the customer request",
   "products": [
     {
       "name": "Exact product name as listed on uae.sharafdg.com",
       "brand": "Brand name",
-      "specs": "Key specs e.g. 55 inch · 4K QLED · 120Hz · Smart TV",
-      "price": 2199,
-      "original_price": 2599,
+      "specs": "Key specs e.g. 75 inch · 4K OLED · 120Hz · Smart TV",
+      "price": 5999,
+      "original_price": 7499,
       "energy_rating": "5 Star",
       "features": ["Feature 1", "Feature 2", "Feature 3"],
       "why": "Specific reason this product suits the customer's request",
-      "url": "https://uae.sharafdg.com/product/actual-slug/"
+      "url": "https://uae.sharafdg.com/product/actual-product-slug/"
     }
   ]
 }
 
-Set original_price to null if no sale price found. Set url to null if not found. Return ONLY raw JSON.`;
+Set original_price to null if no sale/original price is shown. Return ONLY raw JSON.`;
 
     const yandexRes = await fetch('https://ai.api.cloud.yandex.net/v1/responses', {
       method: 'POST',
@@ -75,8 +155,8 @@ Set original_price to null if no sale price found. Set url to null if not found.
         model:             'gpt://' + folderId + '/yandexgpt',
         input:             prompt,
         tools:             [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
-        temperature:       0.2,
-        max_output_tokens: 4000   // increased to fit 10-14 detailed products
+        temperature:       0.3,
+        max_output_tokens: 6000
       })
     });
 
@@ -109,10 +189,7 @@ Set original_price to null if no sale price found. Set url to null if not found.
       clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
     }
 
-    // Soft hallucination check — only block if ALL products look like obvious placeholders.
-    // We use a strict pattern and a high threshold (60%) so real-but-oddly-named products
-    // are not incorrectly blocked. If only a minority look fake, we let them through
-    // so the genuine results still reach the user.
+    // Soft hallucination guard — only block if >75% of products are clearly placeholders
     try {
       const parsed = JSON.parse(clean.match(/(\{[\s\S]*\})/)?.[1] || clean);
       if (parsed?.products?.length) {
@@ -120,14 +197,13 @@ Set original_price to null if no sale price found. Set url to null if not found.
         const fakeCount = parsed.products.filter(p =>
           fakePattern.test(p.brand || '') && fakePattern.test(p.name || '')
         ).length;
-        // Only reject if more than 30% are clearly fake
-        if (fakeCount / parsed.products.length > 0.30) {
+        if (fakeCount / parsed.products.length > 0.75) {
           return new Response(JSON.stringify({
             error: 'The AI could not find real products for this search. Try a more specific query, e.g. include a brand name or product category.'
           }), { status: 422, headers: cors });
         }
       }
-    } catch (e) { /* parsing will be handled on the frontend */ }
+    } catch (e) { /* parsing handled on frontend */ }
 
     return new Response(JSON.stringify({ answer: clean }), { status: 200, headers: cors });
 
