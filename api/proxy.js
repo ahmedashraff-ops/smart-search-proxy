@@ -68,7 +68,8 @@ Target 8 to 12 products. If fewer real products are found via search, broaden to
       body: JSON.stringify({
         model: 'gpt://' + folderId + '/yandexgpt',
         input: prompt,
-        tools: [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] } }],
+        tools: [{ type: 'web_search', filters: { allowed_domains: ['uae.sharafdg.com'] },
+            "search_context_size": "medium", }],
         temperature: 0.2,
         max_output_tokens: 4000
       })
