@@ -1,4 +1,4 @@
-// Node.js runtime (not Edge) — allows up to 60s on Hobby plan
+// Node.js runtime — allows up to 60s on Hobby plan
 export const config = { runtime: 'nodejs' };
 
 export default async function handler(req, res) {
@@ -50,7 +50,6 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Extract answer text — handle both response shapes
     let answer = '';
     if (data.output_text) {
       answer = data.output_text;
@@ -62,13 +61,7 @@ export default async function handler(req, res) {
       }
     }
 
-    // Strip markdown fences if the agent added them
-    let clean = answer.trim();
-    if (clean.startsWith('```')) {
-      clean = clean.replace(/^```[a-z]*\n?/, '').replace(/```\s*$/, '').trim();
-    }
-
-    res.status(200).json({ answer: clean });
+    res.status(200).json({ answer: answer.trim() });
 
   } catch (err) {
     clearTimeout(timeoutId);
